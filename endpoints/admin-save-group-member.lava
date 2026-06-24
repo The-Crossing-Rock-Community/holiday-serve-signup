@@ -1,0 +1,139 @@
+{% comment %}
+    {admin-save-group-member}
+    saves fields from form to specified group member
+    query parameters: GroupMemberGuid (REQUIRED)
+{% endcomment %}
+
+{% capture regexpGuid %}^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})${% endcapture %}
+
+{% lava
+    assign inputError = false
+    assign inputErrorMessages = ""
+
+    assign inputValue = QueryString.GroupMemberGuid | SanitizeSql | Default:''
+    assign inputValid = inputValue | RegExMatch:regexpGuid
+    if inputValid
+        assign groupMemberId = inputValue | GuidToId:'GroupMember'
+    else
+        assign inputError = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for GroupMemberGuid'
+    endif
+
+    assign inputStatus = Form.volunteerstatus | SanitizeSql | Default:''
+    if inputStatus != ''
+        if inputStatus == 'Inactive' or inputStatus == 'Active' or inputStatus == 'Pending'
+            assign newStatus = inputStatus
+        else
+            assign inputError = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for Volunteer Status field'
+        endif
+    else
+        assign inputError = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Volunteer Status is a required field'
+    endif
+
+    assign inputVolunteerNew = Form.volunteernew | SanitizeSql | Default:''
+    if inputVolunteerNew != ''
+        if inputVolunteerNew == 'true' or inputVolunteerNew == 'false'
+            assign newVolunteerNew = inputVolunteerNew | AsBoolean
+        else
+            assign inputError = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for New Volunteer field'
+        endif
+    else
+        assign inputError = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Volunteer New? is a required field'
+    endif
+
+    assign inputAssistant = Form.volunteerassistant | SanitizeSql | Default:''
+    if inputAssistant != ''
+        if inputAssistant == 'true' or inputAssistant == 'false'
+            assign newAssistant = inputAssistant | AsBoolean
+        else
+            assign inputError = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for Assistant field'
+        endif
+    else
+        assign inputError = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Assistant? is a required field'
+    endif
+%}
+
+<div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+        {% if inputError != true %}
+            {% groupmember id:'{{ groupMemberId }}' securityenabled:'false' %}
+                {% if groupmember != null and groupmember != empty %}
+                    {% assign volunteer = groupmember %}
+                {% else %}
+                    {% assign inputError = true %}
+                    {% assign inputErrorMessages = inputErrorMessages | AddToArray:'Volunteer NOT Found for input GUID' %}
+                {% endif %}
+            {% endgroupmember %}
+        {% endif %}
+
+        {% if inputError %}
+            {% assign errCount = inputErrorMessages | Size %}
+
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <ul>
+                        {% for msg in inputErrorMessages %}
+                        <li>{{ msg }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% else %}
+            {% assign oldStatus = volunteer.GroupMemberStatus %}
+            {% assign oldVolunteerNew = volunteer | Attribute:'NewVolunteer' | Default:'false' | AsBoolean %}
+            {% assign oldAssistant = volunteer | Attribute:'Assistant' | Default:'false' | AsBoolean %}
+
+            {% if newStatus != oldStatus or newVolunteerNew != oldVolunteerNew or newAssistant != oldAssistant %}
+
+                {% modifygroupmember id:'{{ volunteer.Id }}' clientvalidationenabled:'true' %}
+                    [[ property name:'GroupMemberStatus' isrequired:'true' ]]{{ newStatus }}[[ endproperty ]]
+                    [[ attribute key:'NewVolunteer' isrequired:'true' ]]{{ newVolunteerNew }}[[ endattribute ]]
+                    [[ attribute key:'Assistant' isrequired:'true' ]]{{ newAssistant }}[[ endattribute ]]
+                {% endmodifygroupmember %}
+
+                {% if ModifyResult.Success == false %}
+                    <div class="modal-body">
+                        <div class="alert alert-danger">
+                            <h3 class="alert-heading">Save Error</h3>
+                            <strong>{{ ModifyResult.ErrorMessage }}</strong><br>
+                            Validation Messages<br>
+                            <ul>
+                                {% for message in ModifyResult.ValidationErrors %}
+                                    <li>{{ message.ErrorMessage }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                {% else %}
+                    <div class="modal-body">
+                        Updates saved
+                    </div>
+                    {%- capture headerJSON -%}{ "reload-volunteer-{{ volunteer.Guid }}": "doit" }{%- endcapture -%}
+                    {% httpresponse %}
+                        [[ header key:'HX-Trigger-After-Settle' ]]{{- headerJSON -}}[[ endheader ]]
+                    {% endhttpresponse %}
+                    <script>
+                        debounceToast("Updates for {{ volunteer.Person.FullName | EscapeDataString }} saved", 'success');
+                        $('#volunteer-edit-modal').modal('hide');
+                    </script>
+                {% endif %}
+            {% else %}
+                <div class="modal-body">
+                </div>
+                <script>
+                    debounceToast("No changes detected for {{ volunteer.Person.FullName | EscapeDataString }} - save cancelled", 'info');
+                    $('#volunteer-edit-modal').modal('hide');
+                </script>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>

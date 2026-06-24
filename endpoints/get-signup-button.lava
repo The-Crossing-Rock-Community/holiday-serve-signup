@@ -1,0 +1,89 @@
+{% comment %}
+    {get-signup-button}
+    checks the roleservices input on the form - and returns the signup button when there is at least 1 service selected.
+    query parameters: BtnText (OPTIONAL)
+{% endcomment %}
+
+{% capture regexpGuid %}^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})${% endcapture %}
+{% capture regexpGuids %}^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(,[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})*${% endcapture %}
+
+{% lava
+    assign signUpWorkflowTypeId = ConfigurationRigging.SignUpWorkflowTypeId
+    assign pubRoot = 'Global' | Attribute:'PublicApplicationRoot'
+
+    assign btnText = QueryString.BtnText | SanitizeSql | Default:'Sign Up'
+
+    assign inputErrors = false
+    assign inputErrorMessages = ""
+
+    assign inputValue = QueryString.PersonGuid | SanitizeSql | Default:''
+    if inputValue != ''
+        assign inputValid = inputValue | RegExMatch:regexpGuid
+        if inputValid
+            assign personGuid = inputValue
+        else
+            assign inputErrors = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for PersonGuid'
+        endif
+    else
+        assign personGuid = ''
+    endif
+
+    assign inputValue = QueryString.GroupGuid | SanitizeSql | Default:''
+    if inputValue != ''
+        assign inputValid = inputValue | RegExMatch:regexpGuid
+        if inputValid
+            assign groupGuid = inputValue
+        else
+            assign inputErrors = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for GroupGuid'
+        endif
+    else
+        assign groupGuid = ''
+    endif
+
+    assign inputValue = QueryString.LocationGuid | SanitizeSql | Default:''
+    if inputValue != ''
+        assign inputValid = inputValue | RegExMatch:regexpGuid
+        if inputValid
+            assign locationGuid = inputValue
+        else
+            assign inputErrors = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for LocationGuid'
+        endif
+    else
+        assign locationGuid = ''
+    endif
+
+    assign services = ''
+    assign inputValue = Form.locationservices | SanitizeSql | Default:''
+    if inputValue != ''
+        assign inputValid = inputValue | RegExMatch:regexpGuids
+        if inputValid
+            assign services = inputValue
+        endif
+    endif
+
+    assign holidaySwitch = Form.holidayswitch | SanitizeSql | Default:'none'
+    case holidaySwitch
+        when 'christmas'
+            assign wfPath = 'servechristmas/signup'
+        when 'easter'
+            assign wfPath = 'serveeaster/signup'
+        else
+            assign wfPath = 'holidayserve/signup'
+    endcase
+%}
+
+{% if inputErrors %}
+    <div class="alert alert-danger">
+        {% for message in inputErrorMessages %}
+            <p>{{ message }}</p>
+        {% endfor %}
+    </div>
+    {% return %}
+{% endif %}
+
+{% if groupGuid != '' and services != '' %}
+    <a href="{{ pubRoot }}{{ wfPath }}?Person={{ personGuid }}&Group={{ groupGuid }}&Location={{ locationGuid }}&Schedules={{ services }}" class="btn btn-signup">{{ btnText }}</a>
+{% endif %}

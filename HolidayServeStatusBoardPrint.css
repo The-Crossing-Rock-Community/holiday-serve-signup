@@ -1,0 +1,119 @@
+body {
+	 background-color: #fff;
+}
+ @page {
+	 size: letter;
+	 margin: 25px 25px;
+}
+ #status-board-print .panel-heading {
+	 color: #000;
+	 background-color: #cbcbcb;
+	 padding: 8px 12px;
+	 display: grid;
+	 grid-template-columns: repeat(2,1fr);
+	 grid-template-rows: auto;
+	 align-items: center;
+	 font-size: 18px;
+}
+ #status-board-print .panel-heading .panel-title {
+	 display: flex;
+	 flex-wrap: wrap;
+	 justify-self: left;
+	 justify-content: space-between;
+	 align-items: center;
+	 font-size: 18px;
+	 font-weight: bold;
+}
+ #status-board-print .panel-heading .panel-options-summary {
+	 justify-self: right;
+	 font-size: 18px;
+	 font-weight: bold;
+}
+ #status-board-print .panel-heading .panel-actions {
+	 display: none;
+}
+ #status-board-print .panel-body {
+	 padding: 4px 0px;
+}
+ #status-board-print .panel-body #options-entry {
+	 display: none;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board thead {
+	 color: #000;
+	 background-color: #fff;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board tr.group-header {
+	 background-color: #dddddd;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board tr.group-header th {
+	 padding: 4px 8px;
+	 line-height: 1.0em;
+	 font-style: italic;
+	 font-size: 14px;
+	 white-space: nowrap;
+	 text-align: left;
+	 vertical-align: bottom;
+	 background-color: #dddddd;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .group-location-column {
+	 color: #000;
+	 background-color: #fff;
+	 font-size: 14px;
+	 min-width: 125px;
+	 max-width: 200px;
+	 padding-right: 10px;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .group-location-column.group-name {
+	 font-weight: bold;
+	 text-align: left;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .group-location-column.location-name {
+	 font-weight: normal;
+	 text-align: right;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .schedule-column {
+	 min-width: 125px;
+	 border-left: 1px solid #dddddd;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .schedule-column:last-child {
+	 border-right: 1px solid #dddddd;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .schedule-header {
+	 white-space: nowrap;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .location-schedule {
+	 width: max-content;
+	 min-width: 125px;
+	 padding: 0;
+	 margin: 0;
+	 overflow: hidden;
+	 border-left: 1px solid #dddddd;
+	 white-space: nowrap;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .location-schedule .volunteer-list {
+	 padding: 0;
+	 margin: 0;
+	 display: grid;
+	 grid-template-columns: auto;
+	 row-gap: 0px;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .location-schedule .volunteer-list .slot {
+	 min-height: 36px;
+	 padding: 4px 30px 4px 10px;
+	 border-bottom: 1px solid #dddddd;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .location-schedule .volunteer-list .slot.slot-filled {
+	 font-size: 12px;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .location-schedule .volunteer-list .slot.slot-empty {
+	 font-size: 12px;
+	 font-style: italic;
+}
+ #status-board-print .panel-body #status-board-wrapper .table.table-status-board .location-schedule .volunteer-list .slot.slot-empty.show-counts-false {
+	 display: none;
+}
+ .print-date {
+	 margin: 5px 20px;
+	 font-style: italic;
+}
+ 

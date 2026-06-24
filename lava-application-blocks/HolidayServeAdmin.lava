@@ -1,0 +1,74 @@
+{% comment %}
+    Lava Application Content block on the internal admin page for Holiday Serve Signup
+{% endcomment %}
+
+{% lava
+    assign holidayServeMinistryTeamDefinedTypeId = ConfigurationRigging.HolidayServeMinistryTeamDefinedTypeId
+    assign campusStatusValueIdOpen = ConfigurationRigging.CampusStatusValueIdOpen
+    assign campusTypeValueIdPhysical = ConfigurationRigging.CampusTypeValueIdPhysical
+
+    assign ministryTeamDVs = holidayServeMinistryTeamDefinedTypeId | FromCache:'DefinedType' | Property:'DefinedValues' | Where:'IsActive','true'
+    assign ministryTeamDVIds = ministryTeamDVs | Select:'Id' | Join:','
+
+    assign inputMinistryTeam = CurrentPerson | GetUserPreference:'holiday-serve-admin-ministry-team' | Default:''
+    if inputMinistryTeam != '' and ministryTeamDVIds contains inputMinistryTeam
+        assign filterMinistryTeam = inputMinistryTeam
+    else
+        assign filterMinistryTeam = ''
+    endif
+
+    assign campuses = 'ALL' | FromCache:'Campus' | Where:'CampusStatusValueId', campusStatusValueIdOpen | Where:'CampusTypeValueId', campusTypeValueIdPhysical | OrderBy:'Name'
+    assign campusIds = campuses | Select:'Id' | Join:','
+
+    assign inputCampus = CurrentPerson | GetUserPreference:'holiday-serve-admin-campus' | Default:''
+    if inputCampus != '' and campusIds contains inputCampus
+        assign filterCampus = inputCampus
+    else
+        assign filterCampus = ''
+    endif
+%}
+
+<div id="holiday-serve-admin-block">
+    <div id="panel-holiday-serve-admin-filters" class="panel panel-default panel-holiday-serve-admin">
+        <div class="panel-heading">
+            <div class="panel-title">Holiday Serve Admin</div>
+        </div>
+        <div class="panel-body">
+
+            <div class="filters-left">
+                <lava-form>
+                    <lava-validationsummary></lava-validationsummary>
+
+                    {% assign addlAttr = 'hx-put="^/holiday-serve-signup/admin-get-groups" hx-trigger="change" hx-target="#groups-container" hx-swap="innerHTML swap:0.25s"' %}
+
+                    <div class="filter-wrapper filter-ministry">
+                        {[ radiobuttonlistxing name:'filterministry' label:'Which Ministry?' value:'{{ filterMinistryTeam }}' isrequired:'true' columns:'1' additionalattributes:'{{ addlAttr }}' ]}
+                            {% for ministryTeamDV in ministryTeamDVs %}
+                                [[ item value:'{{ ministryTeamDV.Id }}' text:'{{ ministryTeamDV.Value | Escape }}' ]][[ enditem ]]
+                            {% endfor %}
+                        {[ endradiobuttonlistxing ]}
+                    </div>
+
+                    <div class="filter-wrapper filter-campus">
+                        {[ radiobuttonlistxing name:'filtercampus' label:'Which Campus?' value:'{{ filterCampus }}' isrequired:'true' columns:'1' additionalattributes:'{{ addlAttr }}' ]}
+                            {% for campus in campuses %}
+                                [[ item value:'{{ campus.Id }}' text:'{{ campus.Name | Escape }}' ]][[ enditem ]]
+                            {% endfor %}
+                        {[ endradiobuttonlistxing ]}
+                    </div>
+                </lava-form>
+            </div>
+
+            <div id="groups-container" class="filters-right"
+                hx-put="^/holiday-serve-signup/admin-get-groups"
+                hx-trigger="load delay:50ms"
+                hx-swap="innerHTML swap:0.25s">
+            </div>
+
+        </div>
+    </div>
+
+    <div id="group-details-container">
+    </div>
+</div>
+{[ handlehelixresponseerror ]}

@@ -1,0 +1,22 @@
+{
+    "HolidayServingGroupTypeId" : [YOUR_HOLIDAY_SERVING_GROUP_TYPE_ID],
+    "RockAdminSecurityGroupId" : [YOUR_ROCK_ADMIN_SECURITY_GROUP_ID],
+    "SignUpWorkflowTypeId" : [YOUR_SIGNUP_WORKFLOW_TYPE_ID],
+    "HolidayServeMinistryTeamDefinedTypeId" : [YOUR_MINISTRY_TEAM_DEFINED_TYPE_ID],
+    "MinistryTeamKidsDefinedValueId" : [YOUR_KIDS_MINISTRY_DEFINED_VALUE_ID],
+    "MinistryTeamGuestExperiencesDefinedValueId" : [YOUR_GUEST_EXPERIENCES_DEFINED_VALUE_ID],
+    "BackgroundCheckWorkflowTypeId" : [YOUR_BACKGROUND_CHECK_WORKFLOW_TYPE_ID],
+    "BackgroundCheckBadgeId" : [YOUR_BACKGROUND_CHECK_BADGE_ID],
+    "GroupMemberNoteTypeId" : [YOUR_GROUP_MEMBER_NOTE_TYPE_ID],
+    "CampusStatusValueIdOpen" : [YOUR_CAMPUS_STATUS_OPEN_DEFINED_VALUE_ID],
+    "CampusTypeValueIdPhysical" : [YOUR_CAMPUS_TYPE_PHYSICAL_DEFINED_VALUE_ID],
+    "LocationTypeCampusValueId" : [YOUR_LOCATION_TYPE_CAMPUS_DEFINED_VALUE_ID],
+    "GroupAdminPagePath" : "[YOUR_GROUP_ADMIN_PAGE_PATH]",
+
+    "AttributeIds": {
+        "PublicLabelAttrId" : [YOUR_PUBLIC_LABEL_ATTRIBUTE_ID],
+        "SignUpAccessGroupAttrId" : [YOUR_SIGN_UP_ACCESS_GROUP_ATTRIBUTE_ID],
+        "IconAttrId" : [YOUR_ICON_ATTRIBUTE_ID],
+        "MinistryTeamAttrId" : [YOUR_MINISTRY_TEAM_ATTRIBUTE_ID]
+    }
+}

@@ -1,0 +1,65 @@
+{% comment %}
+    Lava Application Content block on the Holiday Serve Signup page
+{% endcomment %}
+
+{% lava
+    assign campusStatusValueIdOpen = ConfigurationRigging.CampusStatusValueIdOpen
+    assign campusTypeValueIdPhysical = ConfigurationRigging.CampusTypeValueIdPhysical
+%}
+{% assign pagePath = 'Global' | Page:'Path' %}
+{% if pagePath contains 'servechristmas' %}
+    {{ 'Serve<br>Christmas' | SetPageTitle:'PageTitle' }}
+    {{ 'Serve Christmas' | SetPageTitle:'BrowserTitle' }}
+    {% assign holidaySwitch = 'christmas' %}
+{% elseif pagePath contains 'serveeaster' %}
+    {{ 'Serve<br>Easter' | SetPageTitle:'PageTitle' }}
+    {{ 'Serve Easter' | SetPageTitle:'BrowserTitle' }}
+    {% assign holidaySwitch = 'easter' %}
+{% else %}
+    {% assign holidaySwitch = 'none' %}
+{% endif %}
+
+<div id="holiday-signup-block">
+
+    <lava-form>
+        <lava-validationsummary></lava-validationsummary>
+
+        {% assign addlAttr = 'hx-put="^/holiday-serve-signup/get-serve-roles?UserSelection=true" hx-trigger="change" hx-target="#campus-roles-container" hx-swap="innerHTML swap:0.25s"' %}
+
+        {% if CurrentPerson != null %}
+            {% assign familyMembers = CurrentPerson.PrimaryFamily.Members | OrderBy:'Person.FullName' %}
+
+            <div class="filter-wrapper filter-family-member">
+                {[ dropdownxing label:'Who is Signing Up?' name:'filterfamilymember' isrequired:'true' value:'{{ CurrentPerson.PrimaryAlias.Guid }}' additionalattributes:'{{ addlAttr }}' ]}
+                    {% for familyMember in familyMembers %}
+                        {% if familyMember.Person.IsDeceased != true %}
+                            [[ item value:'{{ familyMember.Person.PrimaryAlias.Guid }}' text:'{{ familyMember.Person.FullName | Escape }}' ]][[ enditem ]]
+                        {% endif %}
+                    {% endfor %}
+                    [[ item value:'0' text:'...Someone Else' ]][[
+                    enditem ]]
+                {[ enddropdownxing ]}
+            </div>
+        {% endif %}
+
+        {% assign campuses = 'ALL' | FromCache:'Campus' | Where:'CampusStatusValueId', campusStatusValueIdOpen | Where:'CampusTypeValueId', campusTypeValueIdPhysical | OrderBy:'Name' %}
+        <div class="filter-wrapper filter-campus">
+            {[ radiobuttonlistxing name:'filtercampus' label:'Which Campus?' value:'' isrequired:'true' columns:'4' additionalattributes:'{{ addlAttr }}' ]}
+                {% for campus in campuses %}
+                    [[ item value:'{{ campus.Guid }}' text:'{{ campus.Name | Escape }}' ]][[ enditem ]]
+                {% endfor %}
+            {[ endradiobuttonlistxing ]}
+        </div>
+
+        <input id="holiday-switch" name="holidayswitch" type="hidden" value="{{ holidaySwitch }}">
+
+        <div id="campus-roles-container"
+            hx-put="^/holiday-serve-signup/get-serve-roles"
+            hx-trigger="load delay:50ms"
+            hx-swap="innerHTML swap:0.25s">
+        </div>
+
+    </lava-form>
+</div>
+
+{[ handlehelixresponseerror ]}

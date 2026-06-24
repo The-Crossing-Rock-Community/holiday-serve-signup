@@ -1,0 +1,358 @@
+{%- stylesheet id:'holidayserveCSS' compile:'less' -%}
+    :root {
+        --secondary-color-lifeblood: #a1302b;
+    }
+
+    .holiday-serve-signup {
+
+        .intro-paragraph,
+        .serving-role-cards,
+        .serving-role-details,
+        #role-services-signup {
+            font-size: 22px;
+
+            @media (max-width: 990px) {
+                font-size: 20px;
+            }
+
+            @media (max-width: 768px) {
+                font-size: 19px;
+            }
+
+            @media (max-width: 500px) {
+                font-size: 18px;
+            }
+
+            .intro-text {
+                line-height: 1.8;
+                margin-bottom: 20px;
+            }
+
+            .login-text {
+                line-height: 1.4;
+                margin-bottom: 20px;
+                font-size: 0.8em;
+                font-style: italic;
+            }
+        }
+
+        #holiday-signup-block {
+            label {
+                letter-spacing: 2px;
+
+                span.label-text {
+                    letter-spacing: 1px;
+                }
+            }
+
+            #campus-roles-container {
+                opacity: 1;
+                transition: opacity 0.25s ease-in;
+
+                &.htmx-swapping {
+                    opacity: 0;
+                    transition: opacity 0.25s ease-out;
+                }
+
+                .campus-role-cards {
+                    display: flex;
+                    flex-direction: row;
+                    flex-wrap: wrap;
+                    justify-content: flex-start;
+                    column-gap: 10px;
+                    row-gap: 10px;
+
+                    @media (max-width: 768px) {
+                        justify-content: center;
+                    }
+
+                    .campus-role-card {
+                        width: 320px;
+                        max-width: 95vw;
+                        padding: 4px 10px 4px 2px;
+                        column-gap: 5px;
+                        display: grid;
+                        grid-template-columns: 60px 1fr;
+                        grid-template-rows: auto auto;
+                        align-items: center;
+                        justify-items: center;
+                        border: 1px solid #000;
+                        border-radius: 5px;
+
+                        &.slots-available {
+                            background-color: #fafafa;
+
+                            .campus-role-icon {
+                                color: var(--secondary-color-lifeblood);
+                            }
+                        }
+
+                        &.slots-available:hover:not(.card-selected) {
+                            border-color: var(--secondary-color-lifeblood);
+                            background-color: var(--color-interface-softest);
+                            cursor: pointer;
+                        }
+
+                        &.slots-full {
+                            background-color: #cbcbcb;
+
+                            .campus-role-icon,
+                            .campus-role-name {
+                                opacity: 0.4;
+                            }
+                        }
+
+                        &.card-selected {
+                            color: var(--color-interface-softest);
+                            background-color: var(--secondary-color-lifeblood);
+                            pointer-events: none;
+
+                            .campus-role-icon {
+                                color: var(--color-interface-softest);
+                            }
+
+                            .campus-role-message {
+                                color: initial;
+                            }
+                        }
+
+                        .campus-role-icon {
+                            grid-row-start: 1;
+                            grid-row-end: 3;
+                            grid-column: 1;
+                            font-size: 1.5em;
+                        }
+
+                        .campus-role-name {
+                            grid-row: 1;
+                            grid-column: 2;
+                            font-weight: bold;
+                            font-size: 1.0em;
+                            width: 100%;
+                            text-align: center;
+                        }
+
+                        .campus-role-message {
+                            grid-row: 2;
+                            grid-column: 2;
+                            font-size: 0.65em;
+                            line-height: 1;
+                            border: 1px solid #cbcbcb;
+                            border-radius: 50px;
+                            padding: 2px 8px;
+                            margin-bottom: 4px;
+                            width: 80%;
+                            text-align: center;
+                            background-color: #cbcbcb;
+                        }
+                    }
+                }
+
+                #role-locations-container {
+                    opacity: 1;
+                    transition: opacity 0.25s ease-in;
+
+                    &.htmx-swapping {
+                        opacity: 0;
+                        transition: opacity 0.25s ease-out;
+                    }
+
+                    .serving-role-details {
+
+                        .serving-role-name {
+                            text-align: center;
+                            font-family: neue-regular;
+                            text-transform: uppercase;
+                            letter-spacing: 2px;
+                            margin-bottom: 10px;
+                        }
+
+                        .serving-role-description {
+                            font-size: 0.9em;
+                            width: 80%;
+                            max-width: 600px;
+                            margin: 0 auto;
+                        }
+                    }
+
+                    .role-location-cards {
+                        display: flex;
+                        flex-direction: row;
+                        flex-wrap: wrap;
+                        justify-content: flex-start;
+                        column-gap: 10px;
+                        row-gap: 10px;
+                        margin-bottom: 20px;
+
+                        @media (max-width: 768px) {
+                            justify-content: center;
+                        }
+
+                        .role-location-card {
+                            width: 320px;
+                            max-width: 95vw;
+                            padding: 4px 10px 4px 2px;
+                            column-gap: 5px;
+                            display: grid;
+                            grid-template-columns: auto;
+                            grid-template-rows: auto auto;
+                            align-items: center;
+                            justify-items: center;
+                            border: 1px solid #000;
+                            border-radius: 5px;
+
+                            &.slots-available {
+                                background-color: #f7f7f7;
+                            }
+
+                            &.slots-available:hover:not(.card-selected) {
+                                background-color: var(--color-interface-softest);
+                                cursor: pointer;
+                            }
+
+                            &.slots-full {
+                                background-color: #cbcbcb;
+
+                                .role-location-name {
+                                    opacity: 0.4;
+                                }
+                            }
+
+                            &.card-selected {
+                                color: var(--color-interface-softest);
+                                background-color: var(--secondary-color-lifeblood);
+                                pointer-events: none;
+
+                                .role-location-message {
+                                    color: initial;
+                                }
+                            }
+
+                            .role-location-name {
+                                grid-row: 1;
+                                font-weight: bold;
+                                font-size: 1.0em;
+                                width: 100%;
+                                text-align: center;
+                            }
+
+                            .role-location-message {
+                                grid-row: 2;
+                                font-size: 0.65em;
+                                line-height: 1;
+                                border: 1px solid #cbcbcb;
+                                border-radius: 50px;
+                                padding: 2px 8px;
+                                margin-bottom: 4px;
+                                width: 80%;
+                                text-align: center;
+                                background-color: #cbcbcb;
+                            }
+                        }
+                    }
+
+                }
+
+                #location-services-container {
+                    display: grid;
+                    grid-template-columns: 50% 50%;
+                    width: 100%;
+                    align-items: center;
+                    row-gap: 10px;
+
+                    opacity: 1;
+                    transition: opacity 0.25s ease-in;
+
+                    &.htmx-swapping {
+                        opacity: 0;
+                        transition: opacity 0.25s ease-out;
+                    }
+
+                    @media (max-width: 768px) {
+                        grid-template-columns: 100%;
+
+                        .role-services,
+                        #role-services-signup {
+                            width: 90%;
+                            margin: 0 auto;
+                            justify-items: center;
+                        }
+                    }
+
+                    .location-services {
+
+                        .form-group {
+                            margin-bottom: 10px;
+
+                            label.checkbox-inline {
+                                display: grid;
+                                justify-content: start;
+                                column-gap: 20px;
+                                margin-bottom: 5px;
+
+                                &.disabled {
+                                    opacity: 0.4;
+                                }
+
+                                input {
+                                    grid-column: 1;
+                                    grid-row-start: 1;
+                                    grid-row-end: 3;
+                                    width: 30px;
+                                    height: 30px;
+                                    accent-color: var(--secondary-color-lifeblood);
+                                }
+
+                                span.label-text {
+                                    font-size: 1.3em;
+                                    grid-column: 2;
+                                    grid-row: 1;
+                                }
+
+                                span.label-addl-text {
+                                    font-size: 1.0em;
+                                    font-style: italic;
+                                    grid-column: 2;
+                                    grid-row: 2;
+                                    text-transform: initial;
+                                    letter-spacing: initial;
+                                }
+                            }
+                        }
+                    }
+
+                    #location-services-signup {
+                        opacity: 1;
+                        transition: opacity 0.25s ease-in;
+
+                        &.htmx-swapping {
+                            opacity: 0;
+                            transition: opacity 0.25s ease-out;
+                        }
+
+                        width: 90%;
+                        margin: auto;
+                        justify-items: center;
+
+                        .btn.btn-signup {
+                            width: 100%;
+                            padding: 6px 12px;
+                            color: var(--color-interface-softest);
+                            background-color: var(--secondary-color-lifeblood);
+                            border: none;
+                            border-radius: 2px;
+                            font-family: neue;
+                            text-transform: uppercase;
+                            letter-spacing: 1.5px;
+                            font-size: 0.85em;
+
+                            &:hover {
+                                opacity: 0.8;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+{%- endstylesheet -%}

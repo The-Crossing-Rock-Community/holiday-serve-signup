@@ -1,0 +1,45 @@
+<script>
+    var toastTimeout;
+
+    // Function to display a toast notification
+    function showToast(message, type) {
+        var toast = document.createElement('div');
+        toast.className = 'toast-notification ' + type;
+
+        // Create the icon element
+        var icon = document.createElement('i');
+        icon.className = (type === 'success' ? 'ti ti-circle-check' : 'ti ti-exclamation-circle') + ' toast-icon ' + type;
+
+        // Create the text node
+        var text = document.createElement('span');
+        text.innerText = message;
+
+        // Append icon and text to the toast
+        toast.appendChild(icon);
+        toast.appendChild(text);
+
+        // Append the toast to the body
+        document.body.appendChild(toast);
+
+        // Remove toast after 5 seconds
+        setTimeout(function() {
+            toast.style.opacity = 0;
+            setTimeout(function() {
+                document.body.removeChild(toast);
+            }, 500);
+        }, 5000);
+    }
+
+    // Function to debounce showing the toast notification
+    function debounceToast(message, type) {
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(function() {
+            showToast(message, type);
+        }, 50); // Show toast after inactivity
+    }
+
+    document.body.addEventListener('htmx:afterSettle', function(evt) {
+        $(evt.detail.elt).find('[data-toggle="tooltip"]').tooltip();
+    });
+
+</script>

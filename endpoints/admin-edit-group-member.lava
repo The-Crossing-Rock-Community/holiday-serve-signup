@@ -1,0 +1,101 @@
+{% comment %}
+    {admin-edit-group-member}
+    loads user input form for editing group member details
+    query parameters: GroupMemberGuid (REQUIRED)
+{% endcomment %}
+
+{% capture regexpGuid %}^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})${% endcapture %}
+
+{% lava
+    assign inputError = false
+    assign inputErrorMessages = ""
+
+    assign inputValue = QueryString.GroupMemberGuid | SanitizeSql | Default:''
+    assign inputValid = inputValue | RegExMatch:regexpGuid
+    if inputValid
+        assign groupMemberId = inputValue | GuidToId:'GroupMember'
+    else
+        assign inputError = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for GroupMemberGuid'
+    endif
+%}
+
+<div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+        {% if inputError != true %}
+            {% groupmember id:'{{ groupMemberId }}' securityenabled:'false' %}
+                {% if groupmember != null and groupmember != empty %}
+                    {% assign volunteer = groupmember %}
+                {% else %}
+                    {% assign inputError = true %}
+                    {% assign inputErrorMessages = inputErrorMessages | AddToArray:'Volunteer NOT Found for input GUID' %}
+                {% endif %}
+            {% endgroupmember %}
+        {% endif %}
+
+        {% if inputError %}
+            <div class="modal-header">
+                <h5 class="modal-title">Input Error</h5>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <ul>
+                        {% for msg in inputErrorMessages %}
+                            <li>{{ msg }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% else %}
+
+            {% assign volunteerStatus = volunteer.GroupMemberStatus %}
+            {% assign isNew = volunteer | Attribute:'NewVolunteer' | Default:'false' | AsBoolean %}
+            {% assign isAssistant = volunteer | Attribute:'Assistant' | Default:'false' | AsBoolean %}
+
+            <div class="modal-header">
+                <div class="modal-title">Editing {{ volunteer.Person.FullName }}</div>
+            </div>
+            <div id="volunteer-edit-input" class="modal-body">
+                <lava-form>
+                    <lava-validationsummary></lava-validationsummary>
+
+                    <div class="volunteer-edit-grid">
+
+                        <div class="volunteer-edit-input volunteer-status">
+                            {[ radiobuttonlistxing name:'volunteerstatus' label:'Volunteer Status' value:'{{ volunteerStatus }}' columns:'1' isrequired:'true' validationmessage:'Please select a volunteer status' ]}
+                                [[ item value:'Inactive' text:'Inactive' ]][[ enditem]]
+                                [[ item value:'Active' text:'Active' ]][[ enditem]]
+                                [[ item value:'Pending' text:'Pending' ]][[ enditem]]
+                            {[ endradiobuttonlistxing ]}
+                        </div>
+
+                        <div class="volunteer-edit-input volunteer-new">
+                            {[ radiobuttonlistxing name:'volunteernew' label:'New Volunteer?' value:'{{ isNew }}' columns:'1' isrequired:'true' validationmessage:'Please indicate whether the volunteer is new or not' ]}
+                                [[ item value:'true' text:'Yes' ]][[ enditem]]
+                                [[ item value:'false' text:'No' ]][[ enditem]]
+                            {[ endradiobuttonlistxing ]}
+                        </div>
+                        <div class="volunteer-edit-input volunteer-assistant">
+                            {[ radiobuttonlistxing name:'volunteerassistant' label:'Assistant?' value:'{{ isAssistant }}' columns:'1' isrequired:'true' validationmessage:'Please indicate whether the volunteer is an assistant or not' ]}
+                                [[ item value:'true' text:'Yes' ]][[ enditem]]
+                                [[ item value:'false' text:'No' ]][[ enditem]]
+                            {[ endradiobuttonlistxing ]}
+                        </div>
+                    </div>
+                </lava-form>
+            </div>
+            <div class="modal-footer">
+                <div class="btn btn-primary btn-xs" type="button"
+                    hx-put="^/holiday-serve-signup/admin-save-group-member?GroupMemberGuid={{ volunteer.Guid }}"
+                    hx-include="#volunteer-edit-input"
+                    hx-trigger="click"
+                    hx-target="#volunteer-edit-input"
+                    hx-swap="beforeend">
+                    Save
+                </div>
+                <div class="btn btn-secondary btn-xs" type="button" data-dismiss="modal">Cancel</div>
+            </div>
+
+        {% endif %}
+    </div>
+</div>

@@ -1,0 +1,252 @@
+{% comment %}
+    {get-location-services}
+    loads list of services for the provided role & location for Holiday Serve Signup page
+    query parameters:
+        GroupGuid (REQUIRED - for the role)
+        LocationGuid (REQUIRED - for the location)
+        Person (OPTIONAL - primary alias guid)
+{% endcomment %}
+
+{% capture regexpGuid %}^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})${% endcapture %}
+
+{% lava
+    assign inputErrors = false
+    assign inputErrorMessages = ""
+
+    assign inputValue = QueryString.GroupGuid | SanitizeSql | Default:''
+    assign inputValid = inputValue | RegExMatch:regexpGuid
+    if inputValid
+        assign group = inputValue | GroupByGuid
+    else
+        assign inputErrors = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for GroupGuid'
+    endif
+
+    assign inputValue = QueryString.LocationGuid | SanitizeSql | Default:''
+    assign inputValid = inputValue | RegExMatch:regexpGuid
+    if inputValid
+        assign locationGuid = inputValue
+    else
+        assign inputErrors = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for LocationGuid'
+    endif
+
+    if CurrentPerson != null
+        assign inputValue = QueryString.PersonGuid | SanitizeSql | Default:'0'
+        if inputValue == "0"
+            assign personKnown = false
+        else
+            assign inputValid = inputValue | RegExMatch:regexpGuid
+            if inputValid
+                assign person = inputValue | PersonByAliasGuid
+                if person == null or person == empty
+                    assign personKnown = false
+                else
+                    assign personKnown = true
+                endif
+            else
+                assign personKnown = false
+            endif
+        endif
+    else
+        assign personKnown = false
+    endif
+
+    assign autoScroll = QueryString.Scroll | Default:'true' | AsBoolean
+%}
+
+{% if inputErrors %}
+    {% assign errCount = inputErrorMessages | Size %}
+    <div class="alert alert-danger">
+        Please correct the following {{ 'issue' | PluralizeForQuantity:errCount }}:
+        <ul>
+            {% for msg in inputErrorMessages %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+{% else %}
+
+    {% sql return:'LocationServices' groupid:{{ group.Id }} locationguid:{{ locationGuid }} %}
+
+        WITH SlotsDesiredCTE AS (
+            SELECT  gl.[GroupId] AS 'GroupId'
+                    , gl.[LocationId] AS 'LocationId'
+                    , glsc.[ScheduleId] AS 'ScheduleId'
+                    ,SUM(glsc.[DesiredCapacity]) AS 'SlotCount'
+            FROM    [dbo].[Group] g
+            INNER JOIN [dbo].[GroupLocation] gl
+                ON  gl.[GroupId] = g.[Id]
+            INNER JOIN [dbo].[Location] l
+                ON  l.[Id] = gl.[LocationId]
+                AND l.[Guid] = @locationguid
+            INNER JOIN [dbo].[GroupLocationSchedule] gls
+                ON  gls.[GroupLocationId] = gl.[Id]
+            INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+                ON  glsc.[GroupLocationId] = gl.[Id]
+                AND glsc.[ScheduleId] = gls.[ScheduleId]
+            INNER JOIN [dbo].[Schedule] s
+                ON  s.[Id] = glsc.[ScheduleId]
+                AND s.[EffectiveStartDate] >= GETDATE()
+                AND s.[IsActive] = 'true'
+            WHERE   g.[Id] = @groupid
+                AND g.[IsPublic] = 'true'
+                AND g.[IsActive] = 'true'
+                AND g.[IsArchived] != 'true'
+                AND g.[DisableScheduling] != 'true'
+            GROUP BY gl.[GroupId]
+                    , gl.[LocationId]
+                    , glsc.[ScheduleId]
+        ),
+
+        SlotsFilledCTE AS (
+            SELECT  gl.[GroupId] AS 'GroupId'
+                    , gl.[LocationId] AS 'LocationId'
+                    , glsc.[ScheduleId] AS 'ScheduleId'
+                    , COUNT(a.[Id]) AS 'SlotCount'
+            FROM    [dbo].[Group] g
+            INNER JOIN [dbo].[GroupLocation] gl
+                ON  gl.[GroupId] = g.[Id]
+            INNER JOIN [dbo].[Location] l
+                ON  l.[Id] = gl.[LocationId]
+                AND l.[Guid] = @locationguid
+            INNER JOIN [dbo].[GroupLocationSchedule] gls
+                ON  gls.[GroupLocationId] = gl.[Id]
+            INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+                ON  glsc.[GroupLocationId] = gl.[Id]
+                AND glsc.[ScheduleId] = gls.[ScheduleId]
+            INNER JOIN [dbo].[Schedule] s
+                ON  s.[Id] = glsc.[ScheduleId]
+                AND s.[EffectiveStartDate] >= GETDATE()
+                AND s.[IsActive] = 'true'
+            LEFT OUTER JOIN [dbo].[AttendanceOccurrence] ao
+                ON  ao.[GroupId] = g.[Id]
+                AND ao.[LocationId] = l.[Id]
+                AND ao.[ScheduleId] = glsc.[ScheduleId]
+                AND ao.[OccurrenceDate] = s.[EffectiveStartDate]
+            LEFT OUTER JOIN [dbo].[Attendance] a
+                ON  a.[OccurrenceId] = ao.[Id]
+                AND a.[ScheduledToAttend] = 'true'
+            WHERE   g.[Id] = @groupid
+                AND g.[IsPublic] = 'true'
+                AND g.[IsActive] = 'true'
+                AND g.[IsArchived] != 'true'
+                AND g.[DisableScheduling] != 'true'
+            GROUP BY gl.[GroupId]
+                    , gl.[LocationId]
+                    , glsc.[ScheduleId]
+        ),
+
+        SlotsNeededCTE AS (
+            SELECT  desiredCTE.GroupId
+                    ,desiredCTE.LocationId
+                    ,desiredCTE.ScheduleId
+                    , CASE
+                        WHEN filledCTE.SlotCount > desiredCTE.SlotCount THEN 0
+                        ELSE desiredCTE.SlotCount - filledCTE.SlotCount
+                    END AS 'SlotCount'
+            FROM    SlotsDesiredCTE desiredCTE
+            INNER JOIN  SlotsFilledCTE filledCTE
+                ON  filledCTE.GroupId = desiredCTE.GroupId
+                AND filledCTE.LocationId = desiredCTE.LocationId
+                AND filledCTE.ScheduleId = desiredCTE.ScheduleId
+        )
+
+        SELECT  l.[Id] AS 'LocationId'
+                , l.[Guid] AS 'LocationGuid'
+                , l.[Name] AS 'LocationName'
+                , s.[Id] AS 'ScheduleId'
+                , s.[Guid] AS 'ServiceGuid'
+                , s.[Name] AS 'ServiceTime'
+                , s.[EffectiveStartDate] AS 'ServiceDate'
+                , s.[Order]
+                , SUM(desiredCTE.SlotCount) AS 'SlotsDesired'
+                , SUM(filledCTE.SlotCount) AS 'SlotsFilled'
+                , SUM(neededCTE.SlotCount) AS 'SlotsNeeded'
+                , CASE
+                    WHEN SUM(neededCTE.SlotCount) > 0 THEN 'true'
+                    ELSE 'false'
+                  END AS 'SlotsAvailable'
+        FROM    SlotsDesiredCTE desiredCTE
+        INNER JOIN  SlotsFilledCTE filledCTE
+            ON  filledCTE.GroupId = desiredCTE.GroupId
+            AND filledCTE.LocationId = desiredCTE.LocationId
+            AND filledCTE.ScheduleId = desiredCTE.ScheduleId
+        INNER JOIN  SlotsNeededCTE neededCTE
+            ON  neededCTE.GroupId = desiredCTE.GroupId
+            AND neededCTE.LocationId = desiredCTE.LocationId
+            AND neededCTE.ScheduleId = desiredCTE.ScheduleId
+        INNER JOIN [dbo].[Group] g
+            ON  g.[Id] = desiredCTE.GroupId
+        INNER JOIN [dbo].[Location] l
+            ON  l.[Id] = desiredCTE.LocationId
+        INNER JOIN [dbo].[Schedule] s
+            ON  s.[Id] = desiredCTE.ScheduleId
+            AND s.[EffectiveStartDate] >= GETDATE()
+            AND s.[IsActive] = 'true'
+        GROUP BY g.[Id]
+                , l.[Id]
+                , l.[Guid]
+                , l.[Name]
+                , s.[Id]
+                , s.[Guid]
+                , s.[Name]
+                , s.[EffectiveStartDate]
+                , s.[Order]
+        ORDER BY s.[EffectiveStartDate]
+                , s.[Order]
+
+    {% endsql %}
+
+    {% assign serviceCount = LocationServices | Size %}
+
+    {% if serviceCount > 0 %}
+
+        {% if personKnown %}
+            {% if person.FullName == CurrentPerson.FullName %}
+                {% assign btnText = 'Sign Me Up' %}
+            {% else %}
+                {% assign btnText = 'Sign Up ' | Append:person.NickName %}
+            {% endif %}
+        {% else %}
+            {% assign btnText = 'Sign Up' %}
+        {% endif %}
+
+        <div class="location-services">
+
+            {% capture addlAttr %}hx-put="^/holiday-serve-signup/get-signup-button?BtnText={{ btnText }}&PersonGuid={{ person.PrimaryAlias.Guid }}&GroupGuid={{ group.Guid }}&LocationGuid={{ locationGuid }}" hx-trigger="change" hx-target="#location-services-signup" hx-swap="innerHTML swap:0.25s"{% endcapture %}
+
+            {[ checkboxlistxing name:'locationservices' showlabel:'true' label:'Which Service(s)?' value:'' columns:'1' additionalattributes:'{{ addlAttr }}' ]}
+                {% for locationService in LocationServices %}
+                    {% assign serviceDay = locationService.ServiceDate | Date:'d' | NumberToOrdinal %}
+                    {%- capture serviceName -%}
+                        {{ locationService.ServiceDate | Date:'ddd, MMM'}} {{ serviceDay }} - {{ locationService.ServiceTime | Split:' ' | Last }}
+                    {%- endcapture -%}
+
+                    {% if locationService.SlotsAvailable == 'true' %}
+                        {% capture availableMessage %}{{ locationService.SlotsNeeded }} {{ 'Slot' | PluralizeForQuantity:locationService.SlotsNeeded }} Available{% endcapture %}
+                    {% else %}
+                        {% assign availableMessage = 'All Slots Filled' %}
+                    {% endif %}
+
+                    {% if locationService.SlotsDesired > 0 %}
+                        [[ item value:'{{ locationService.ServiceGuid }}' text:'{{ serviceName }}' addltext:'{{ availableMessage }}' active:'{{ locationService.SlotsAvailable }}' ]][[ enditem ]]
+                    {% endif %}
+                {% endfor %}
+            {[ endcheckboxlistxing ]}
+        </div>
+
+        <div id="location-services-signup">
+        </div>
+
+        <script>
+            $( '.role-location-card' ).removeClass('card-selected');
+            $( '#role-location-card-{{ LocationServices[0].LocationGuid }}' ).addClass('card-selected');
+            {% if autoScroll %}
+                document.getElementById( 'location-services-start' ).scrollIntoView({ behavior: 'smooth', block: 'center' });
+             {% endif %}
+        </script>
+
+
+    {% endif %}
+{% endif %}

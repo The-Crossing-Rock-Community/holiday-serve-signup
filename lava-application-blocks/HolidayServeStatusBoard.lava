@@ -1,0 +1,113 @@
+{% comment %}
+    Lava Application Content block on the internal Holiday Serve Status Board page
+{% endcomment %}
+
+{% lava
+    assign holidayServeMinistryTeamDefinedTypeId = ConfigurationRigging.HolidayServeMinistryTeamDefinedTypeId
+    assign campusStatusValueIdOpen = ConfigurationRigging.CampusStatusValueIdOpen
+    assign campusTypeValueIdPhysical = ConfigurationRigging.CampusTypeValueIdPhysical
+
+    assign ministryTeamDVs = holidayServeMinistryTeamDefinedTypeId | FromCache:'DefinedType' | Property:'DefinedValues' | Where:'IsActive','true'
+    assign ministryTeamDVIds = ministryTeamDVs | Select:'Id' | Join:','
+
+    assign inputMinistryTeam = CurrentPerson | GetUserPreference:'holiday-serve-status-board-ministry-team' | Default:''
+    if inputMinistryTeam != '' and ministryTeamDVIds contains inputMinistryTeam
+        assign filterMinistryTeam = inputMinistryTeam
+    else
+        assign filterMinistryTeam = ''
+    endif
+
+    assign campuses = 'ALL' | FromCache:'Campus' | Where:'CampusStatusValueId', campusStatusValueIdOpen | Where:'CampusTypeValueId', campusTypeValueIdPhysical | OrderBy:'Name'
+    assign campusIds = campuses | Select:'Id' | Join:','
+
+    assign inputCampus = CurrentPerson | GetUserPreference:'holiday-serve-status-board-campus' | Default:''
+    if inputCampus != '' and campusIds contains inputCampus
+        assign filterCampus = inputCampus
+    else
+        assign filterCampus = ''
+    endif
+
+    if filterMinistryTeam == '' or filterCampus == ''
+        assign needOptions = true
+    else
+        assign needOptions = false
+    endif
+
+%}
+
+<div id="holiday-serve-status-board" class="panel panel-default panel-holiday-serve-status-board">
+    <div class="panel-heading">
+        <div class="panel-title">Holiday Serve Status Board</div>
+        <div id="panel-options-summary" class="panel-options-summary"></div>
+        <div class="panel-actions">
+            <div id="options-button" class="btn btn-xs btn-outline-default btn-options hidden-print" onclick="openOptionsEntry();">
+                <i class="ti ti-settings mr-1"></i>
+                Select Options
+            </div>
+            <div id="print-button" class="btn btn-xs btn-outline-default btn-print hidden-print" onclick="printStatusBoard();">
+                <i class="ti ti-printer mr-1"></i>
+                Print
+            </div>
+        </div>
+    </div>
+    <div class="panel-body">
+
+        <div id="options-entry" class="need-options-{{ needOptions }} hidden-print">
+            <lava-form>
+                <lava-validationsummary></lava-validationsummary>
+
+                <div class="options-grid">
+                    {% assign addlAttrMinistryCampus = 'hx-put="^/holiday-serve-signup/get-status-addl-options" hx-trigger="change" hx-target="#additional-options" hx-swap="innerHTML swap:0.25s"' %}
+
+                    <div class="option-wrapper option-ministry">
+                        {[ radiobuttonlistxing name:'optionministry' label:'Which Ministry?' value:'{{ filterMinistryTeam }}' isrequired:'true' additionalattributes:'{{ addlAttrMinistryCampus }}' ]}
+                            {% for ministryTeamDV in ministryTeamDVs %}
+                                [[ item value:'{{ ministryTeamDV.Id }}' text:'{{ ministryTeamDV.Value | Escape }}' ]][[ enditem ]]
+                            {% endfor %}
+                        {[ endradiobuttonlistxing ]}
+                    </div>
+
+                    <div class="option-wrapper option-campus">
+                        {[ radiobuttonlistxing name:'optioncampus' label:'Which Campus?' value:'{{ filterCampus }}' isrequired:'true' additionalattributes:'{{ addlAttrMinistryCampus }}' ]}
+                            {% for campus in campuses %}
+                                [[ item value:'{{ campus.Id }}' text:'{{ campus.Name | Escape }}' ]][[ enditem ]]
+                            {% endfor %}
+                        {[ endradiobuttonlistxing ]}
+                    </div>
+
+                    <div id="additional-options"
+                        {% if needOptions != true %}
+                            hx-put="^/holiday-serve-signup/get-status-addl-options"
+                            hx-trigger="load delay:50ms"
+                            hx-swap="innerHTML swap:0.25s"
+                        {% endif %}>
+                    </div>
+                </div>
+
+                <div class="options-actions">
+                    <div class="btn btn-primary btn-xs px-3"
+                        onclick="closeOptionsEntry();"
+                        hx-put="^/holiday-serve-signup/get-status-board"
+                        hx-target="#status-board-wrapper"
+                        hx-swap="innerHTML"
+                        hx-trigger="click">
+                        OK
+                    </div>
+                </div>
+            </lava-form>
+        </div>
+
+        <div id="status-board-wrapper">
+            {% if needOptions != true %}
+                <div
+                    hx-put="^/holiday-serve-signup/get-status-board"
+                    hx-target="#status-board-wrapper"
+                    hx-swap="innerHTML"
+                    hx-trigger="load delay:150ms">
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<div class="hidden" id="status-board-print"></div>
+{[ handlehelixresponseerror ]}

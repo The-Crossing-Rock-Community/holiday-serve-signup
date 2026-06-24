@@ -1,0 +1,234 @@
+{% comment %}
+    {admin-get-groups}
+    loads Holiday Serve groups based on lavaform inputs
+    lavaform inputs - filterministry (REQUIRED) and filtercampus (REQUIRED)
+{% endcomment %}
+
+{% lava
+    assign holidayServeMinistryTeamDefinedTypeId = ConfigurationRigging.HolidayServeMinistryTeamDefinedTypeId
+    assign campusStatusValueIdOpen = ConfigurationRigging.CampusStatusValueIdOpen
+    assign campusTypeValueIdPhysical = ConfigurationRigging.CampusTypeValueIdPhysical
+    assign holidayServingGroupTypeId = ConfigurationRigging.HolidayServingGroupTypeId
+
+    assign ministryTeamDVs = holidayServeMinistryTeamDefinedTypeId | FromCache:'DefinedType' | Property:'DefinedValues' | Where:'IsActive','true'
+    assign ministryTeamDVIds = ministryTeamDVs | Select:'Id' | Join:','
+
+    assign inputMinistryTeam = Form.filterministry | SanitizeSql | Default:''
+    if inputMinistryTeam != '' and ministryTeamDVIds contains inputMinistryTeam
+        assign filterMinistryTeam = inputMinistryTeam | FromCache:'DefinedValue' | Property:'Guid'
+    else
+        assign filterMinistryTeam = ''
+    endif
+
+    assign campuses = 'ALL' | FromCache:'Campus' | Where:'CampusStatusValueId', campusStatusValueIdOpen | Where:'CampusTypeValueId', campusTypeValueIdPhysical | OrderBy:'Name'
+    assign campusIds = campuses | Select:'Id' | Join:','
+
+    assign inputCampus = Form.filtercampus | SanitizeSql | Default:''
+    if inputCampus != '' and campusIds contains inputCampus
+        assign filterCampus = inputCampus
+    else
+        assign filterCampus = ''
+    endif
+%}
+
+{% if filterMinistryTeam == '' or filterCampus == '' %}
+    <div class="alert alert-info">
+        Please select a ministry and campus to view groups.
+    </div>
+{% else %}
+    {{ CurrentPerson | SetUserPreference:'holiday-serve-admin-ministry-team',inputMinistryTeam }}
+    {{ CurrentPerson | SetUserPreference:'holiday-serve-admin-campus',inputCampus }}
+
+    {% group where:'GroupTypeId == {{ holidayServingGroupTypeId }} && IsActive == true && IsArchived != true && HolidayServeMinistryTeam == "{{ filterMinistryTeam }}" && CampusId == {{ filterCampus }}' iterator:'groups' securityenabled:'false' %}
+        {% assign groupCount = groups | Size %}
+        {% assign groupsSorted = groups | SortByAttribute:'PublicLabel' %}
+        {% assign groupIds = groupsSorted | Select:'Id' | Join:',' %}
+    {% endgroup %}
+
+    {% if groupCount < 1 %}
+        <div class="alert alert-danger">
+            Unable to find any active groups for the selected ministry and campus.
+        </div>
+    {% else %}
+
+        {% sql return:'AllGroupLocations' %}
+            WITH SlotsDesiredCTE AS (
+                SELECT  gl.[GroupId] AS 'GroupId'
+                        , gl.[LocationId] AS 'LocationId'
+                        , glsc.[ScheduleId] AS 'ScheduleId'
+                        ,SUM(glsc.[DesiredCapacity]) AS 'SlotCount'
+                FROM    [dbo].[Group] g
+                INNER JOIN [dbo].[GroupLocation] gl
+                    ON  gl.[GroupId] = g.[Id]
+                INNER JOIN [dbo].[Location] l
+                    ON  l.[Id] = gl.[LocationId]
+                INNER JOIN [dbo].[GroupLocationSchedule] gls
+                    ON  gls.[GroupLocationId] = gl.[Id]
+                INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+                    ON  glsc.[GroupLocationId] = gl.[Id]
+                    AND glsc.[ScheduleId] = gls.[ScheduleId]
+                INNER JOIN [dbo].[Schedule] s
+                    ON  s.[Id] = glsc.[ScheduleId]
+                    AND s.[IsActive] = 'true'
+                WHERE g.[Id] IN ({{ groupIds }})
+                    AND g.[IsActive] = 'true'
+                    AND g.[IsArchived] != 'true'
+                    AND g.[DisableScheduling] != 'true'
+                GROUP BY gl.[GroupId]
+                        , gl.[LocationId]
+                        , glsc.[ScheduleId]
+            ),
+
+            SlotsFilledCTE AS (
+                SELECT  gl.[GroupId] AS 'GroupId'
+                        , gl.[LocationId] AS 'LocationId'
+                        , glsc.[ScheduleId] AS 'ScheduleId'
+                        , COUNT(a.[Id]) AS 'SlotCount'
+                FROM    [dbo].[Group] g
+                INNER JOIN [dbo].[GroupLocation] gl
+                    ON  gl.[GroupId] = g.[Id]
+                INNER JOIN [dbo].[Location] l
+                    ON  l.[Id] = gl.[LocationId]
+                INNER JOIN [dbo].[GroupLocationSchedule] gls
+                    ON  gls.[GroupLocationId] = gl.[Id]
+                INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+                    ON  glsc.[GroupLocationId] = gl.[Id]
+                    AND glsc.[ScheduleId] = gls.[ScheduleId]
+                INNER JOIN [dbo].[Schedule] s
+                    ON  s.[Id] = glsc.[ScheduleId]
+                    AND s.[IsActive] = 'true'
+                LEFT OUTER JOIN [dbo].[AttendanceOccurrence] ao
+                    ON  ao.[GroupId] = g.[Id]
+                    AND ao.[LocationId] = l.[Id]
+                    AND ao.[ScheduleId] = glsc.[ScheduleId]
+                    AND ao.[OccurrenceDate] = s.[EffectiveStartDate]
+                LEFT OUTER JOIN [dbo].[Attendance] a
+                    ON  a.[OccurrenceId] = ao.[Id]
+                    AND a.[ScheduledToAttend] = 'true'
+                WHERE g.[Id] IN ({{ groupIds }})
+                    AND g.[IsActive] = 'true'
+                    AND g.[IsArchived] != 'true'
+                    AND g.[DisableScheduling] != 'true'
+                GROUP BY gl.[GroupId]
+                        , gl.[LocationId]
+                        , glsc.[ScheduleId]
+            ),
+
+            SlotsNeededCTE AS (
+                SELECT  desiredCTE.GroupId
+                        ,desiredCTE.LocationId
+                        ,desiredCTE.ScheduleId
+                        , CASE
+                            WHEN filledCTE.SlotCount > desiredCTE.SlotCount THEN 0
+                            ELSE desiredCTE.SlotCount - filledCTE.SlotCount
+                        END AS 'SlotCount'
+                FROM    SlotsDesiredCTE desiredCTE
+                INNER JOIN  SlotsFilledCTE filledCTE
+                    ON  filledCTE.GroupId = desiredCTE.GroupId
+                    AND filledCTE.LocationId = desiredCTE.LocationId
+                    AND filledCTE.ScheduleId = desiredCTE.ScheduleId
+            )
+
+            SELECT  g.[Id] AS 'GroupId'
+                    , gl.[Order]
+                    , l.[Id] AS 'LocationId'
+                    , l.[Guid] AS 'LocationGuid'
+                    , l.[Name] AS 'LocationName'
+                    , SUM(desiredCTE.SlotCount) AS 'SlotsDesired'
+                    , SUM(filledCTE.SlotCount) AS 'SlotsFilled'
+                    , SUM(neededCTE.SlotCount) AS 'SlotsNeeded'
+                    , CASE
+                        WHEN SUM(neededCTE.SlotCount) > 0 THEN 'true'
+                        ELSE 'false'
+                    END AS 'SlotsAvailable'
+            FROM    SlotsDesiredCTE desiredCTE
+            INNER JOIN  SlotsFilledCTE filledCTE
+                ON  filledCTE.GroupId = desiredCTE.GroupId
+                AND filledCTE.LocationId = desiredCTE.LocationId
+                AND filledCTE.ScheduleId = desiredCTE.ScheduleId
+            INNER JOIN  SlotsNeededCTE neededCTE
+                ON  neededCTE.GroupId = desiredCTE.GroupId
+                AND neededCTE.LocationId = desiredCTE.LocationId
+                AND neededCTE.ScheduleId = desiredCTE.ScheduleId
+            INNER JOIN [dbo].[Group] g
+                ON  g.[Id] = desiredCTE.GroupId
+            INNER JOIN [dbo].[Location] l
+                ON  l.[Id] = desiredCTE.LocationId
+            INNER JOIN [dbo].[GroupLocation] gl
+                ON  gl.[GroupId] = g.[Id]
+                AND gl.[LocationId] = l.[Id]
+            INNER JOIN [dbo].[Schedule] s
+                ON  s.[Id] = desiredCTE.ScheduleId
+                AND s.[IsActive] = 'true'
+            GROUP BY g.[Id]
+                    , gl.[Order]
+                    , l.[Id]
+                    , l.[Guid]
+                    , l.[Name]
+            ORDER BY g.[Id]
+                    , gl.[Order]
+                    , l.[Name]
+        {% endsql %}
+
+        <div class="groups-container">
+            {% for group in groupsSorted %}
+                {% assign groupName = group | Attribute:'PublicLabel' %}
+                {% assign groupIcon = group | Attribute:'Icon' %}
+
+                {% assign allVolunteers = group.Members | Where:'IsArchived','true','notequal' | Where:'GroupMemberStatus','0','notequal' %}
+                {% assign volunteerCount = allVolunteers | Size %}
+
+                {% assign pendingVolunteers = allVolunteers | Where:'GroupMemberStatus','2' %}
+                {% assign pendingCount = pendingVolunteers | Size %}
+
+                <div id="group-card-{{ group.Guid }}"
+                    class="group-card"
+                    hx-get="^/holiday-serve-signup/admin-get-group?GroupGuid={{ group.Guid }}"
+                    hx-trigger="click"
+                    hx-target="#group-details-container"
+                    hx-swap="innerHTML swap:0.25s">
+
+                    <div class="group-card-header">
+                        <div class="group-header-name">{{ groupName }}</div>
+                        <i class="group-header-icon {{ groupIcon }}"></i>
+                    </div>
+
+                    <div class="group-locations">
+                        {% assign GroupLocations = AllGroupLocations | Where:'GroupId',group.Id %}
+                        <div class="group-location group-location-header">
+                            <div class="group-location-name"></div>
+                            <div class="group-location-slots">
+                                <span class="group-location-slot">Have</span>
+                                <span class="group-location-slot">Need</span>
+                            </div>
+                        </div>
+
+                        {% for groupLocation in GroupLocations %}
+                            <div class="group-location">
+                                <div class="group-location-name">
+                                    {{ groupLocation.LocationName | Remove:' - SERVE' }}
+                                    <span class="group-location-total-slots">({{ groupLocation.SlotsDesired }} slots)</span>
+                                </div>
+                                <div class="group-location-slots">
+                                    <span class="group-location-slot">{{ groupLocation.SlotsFilled }}</span>
+                                    <span class="group-location-slot">{{ groupLocation.SlotsNeeded }}</span>
+                                </div>
+                            </div>
+                        {% endfor %}
+
+                    </div>
+                    {% if pendingCount > 0 %}
+                        <div class="group-pending-volunteers">
+                            <span class="pending-label">Pending Volunteers:</span>
+                            <span class="pending-count">{{ pendingCount }}</span>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+
+    {% endif %}
+
+{% endif %}
+
+<div hx-swap-oob="innerHTML:#group-details-container"></div>

@@ -1,0 +1,185 @@
+{% comment %}
+    {get-status-board}
+    builds and returns the status board based on the form inputs
+    lavaform inputs - optionministry (REQUIRED), optioncampus (REQUIRED), optiongroups (OPTIONAL), optionschedules (OPTIONAL)
+{% endcomment %}
+
+{% capture regexpIds %}^\d+(?:,\d+)*${% endcapture %}
+
+{% lava
+    assign holidayServeMinistryTeamDefinedTypeId = ConfigurationRigging.HolidayServeMinistryTeamDefinedTypeId
+    assign campusStatusValueIdOpen = ConfigurationRigging.CampusStatusValueIdOpen
+    assign campusTypeValueIdPhysical = ConfigurationRigging.CampusTypeValueIdPhysical
+    assign holidayServingGroupTypeId = ConfigurationRigging.HolidayServingGroupTypeId
+    assign ministryTeamAttrId = ConfigurationRigging.AttributeIds.MinistryTeamAttrId
+
+    assign ministryTeamDVs = holidayServeMinistryTeamDefinedTypeId | FromCache:'DefinedType' | Property:'DefinedValues' | Where:'IsActive','true'
+    assign ministryTeamDVIds = ministryTeamDVs | Select:'Id' | Join:','
+
+    assign inputMinistryTeam = Form.optionministry | SanitizeSql | Default:''
+    if inputMinistryTeam != '' and ministryTeamDVIds contains inputMinistryTeam
+        assign optionMinistryTeamDV = inputMinistryTeam | FromCache:'DefinedValue'
+        assign optionMinistryTeamGuid = optionMinistryTeamDV.Guid
+    else
+        assign optionMinistryTeamGuid = ''
+    endif
+
+    assign campuses = 'ALL' | FromCache:'Campus' | Where:'CampusStatusValueId', campusStatusValueIdOpen | Where:'CampusTypeValueId', campusTypeValueIdPhysical | OrderBy:'Name'
+    assign campusIds = campuses | Select:'Id' | Join:','
+
+    assign inputCampus = Form.optioncampus | SanitizeSql | Default:''
+    if inputCampus != '' and campusIds contains inputCampus
+        assign optionCampus = inputCampus
+    else
+        assign optionCampus = ''
+    endif
+
+    assign userGroupIds = CurrentPerson | GetUserPreference:'holiday-serve-status-board-group-ids'
+
+    assign inputValue = Form.optiongroups | SanitizeSql | Default:userGroupIds
+    assign validInput = inputValue | RegExMatch:regexpIds
+    if validInput
+        assign inputGroupIds = inputValue
+    else
+        assign inputGroupIds = 'ALL'
+    endif
+
+    assign userScheduleIds = CurrentPerson | GetUserPreference:'holiday-serve-status-board-schedule-ids'
+
+    assign inputValue = Form.optionschedules | SanitizeSql | Default:userScheduleIds
+    assign validInput = inputValue | RegExMatch:regexpIds
+    if validInput
+        assign inputScheduleIds = inputValue
+    else
+        assign inputScheduleIds = 'ALL'
+    endif
+
+    assign delayBase = 10
+    assign delayFactor = 0
+%}
+
+{% if optionMinistryTeamGuid == '' or optionCampus == '' %}
+    <div class="alert alert-info">
+        Please select a ministry and campus to view the status board.
+    </div>
+{% else %}
+    <div hx-swap-oob="innerHTML:#panel-options-summary">
+        {{ optionCampus | FromCache:'Campus' | Property:'Name' }} - {{ optionMinistryTeamDV.Value }}
+    </div>
+
+    {% if inputGroupIds == 'ALL' %}
+        {% group where:'GroupTypeId == {{ holidayServingGroupTypeId }} && IsActive == true && IsArchived != true && HolidayServeMinistryTeam == "{{ optionMinistryTeamGuid }}" && CampusId == {{ optionCampus }}' iterator:'groups' securityenabled:'false' %}
+            {% assign groupCount = groups | Size %}
+        {% endgroup %}
+    {% else %}
+        {% group ids:'{{ inputGroupIds }}' where:'GroupTypeId == {{ holidayServingGroupTypeId }} && IsActive == true && IsArchived != true && HolidayServeMinistryTeam == "{{ optionMinistryTeamGuid }}" && CampusId == {{ optionCampus }}' iterator:'groups' securityenabled:'false' %}
+            {% assign groupCount = groups | Size %}
+        {% endgroup %}
+    {% endif %}
+
+    {% assign groupsSorted = groups | SortByAttribute:'PublicLabel' %}
+
+    {% sql return:'schedules' holidayservinggrouptypeid:'{{ holidayServingGroupTypeId }}' ministryteamattrid:'{{ ministryTeamAttrId }}' ministryteamguid:'{{ optionMinistryTeamGuid }}' campusid:'{{ optionCampus }}' %}
+        SELECT  DISTINCT
+                s.[Id] AS 'Id'
+                , s.[Name] AS 'Name'
+                , s.[EffectiveStartDate] AS 'ScheduleDate'
+                , s.[Order]
+        FROM    [dbo].[Group] g
+        INNER JOIN [dbo].[GroupLocation] gl
+            ON  gl.[GroupId] = g.[Id]
+        INNER JOIN [dbo].[AttributeValue] mtav
+            ON  mtav.[AttributeId] = @MinistryTeamAttrId
+            AND mtav.[EntityId] = g.[Id]
+            AND mtav.[Value] = @MinistryTeamGuid
+        INNER JOIN [dbo].[GroupLocationSchedule] gls
+            ON  gls.[GroupLocationId] = gl.[Id]
+        INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+            ON  glsc.[GroupLocationId] = gl.[Id]
+            AND glsc.[ScheduleId] = gls.[ScheduleId]
+        INNER JOIN [dbo].[Schedule] s
+            ON  s.[Id] = glsc.[ScheduleId]
+            AND s.[IsActive] = 'true'
+            {% if inputScheduleIds != 'ALL' %}
+                AND s.[Id] IN ({{ inputScheduleIds }})
+            {% endif %}
+        WHERE   g.[GroupTypeId] = @HolidayServingGroupTypeId
+        AND     g.[IsActive] = 'true'
+        AND     g.[IsArchived] != 'true'
+        AND     g.[DisableScheduling] != 'true'
+        AND     g.[CampusId] = @CampusId
+        {% if inputGroupIds != 'ALL' %}
+            AND g.[Id] IN ({{ inputGroupIds }})
+        {% endif %}
+        ORDER BY s.[EffectiveStartDate]
+                , s.[Order]
+    {% endsql %}
+    {% assign scheduleCount = schedules | Size %}
+
+    {% if groupCount < 1 or scheduleCount < 1 %}
+        <div class="alert alert-warning">No groups or schedules found for selected options.</div>
+    {% else %}
+
+        {% assign userGroupIds = groupsSorted | Select:'Id' | Join:',' %}
+        {% assign userScheduleIds = schedules | Select:'Id' | Join:',' %}
+        {{ CurrentPerson | SetUserPreference:'holiday-serve-status-board-ministry-team',inputMinistryTeam }}
+        {{ CurrentPerson | SetUserPreference:'holiday-serve-status-board-campus',inputCampus }}
+        {{ CurrentPerson | SetUserPreference:'holiday-serve-status-board-group-ids',userGroupIds }}
+        {{ CurrentPerson | SetUserPreference:'holiday-serve-status-board-schedule-ids',userScheduleIds }}
+
+        <table class="table table-condensed table-status-board">
+            <thead>
+                <tr>
+                    <th class="group-location-column"></th>
+
+                    {% for schedule in schedules %}
+                        {% assign scheduleDay = schedule.ScheduleDate | Date:'d' | NumberToOrdinal %}
+                        <th scope="col" class="schedule-column schedule-name">
+                            <span class="schedule-date">
+                                {{ schedule.ScheduleDate | Date:'MMM' }} {{ scheduleDay }}
+                            </span>
+                            <br>
+                            <span class="schedule-day-time">
+                                {{ schedule.ScheduleDate | Date:'ddd' }}
+                                {{ schedule.Name | Split:' ' | Last }}
+                            </span>
+                        </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% assign lastGroup = '' %}
+                {% for group in groupsSorted %}
+
+                    {% if group.Id != lastGroup %}
+                        {% assign lastGroup = group.Id %}
+                        <tr class="group-header">
+                            <th scope="row" class="group-location-column group-name">
+                                {{ group | Attribute:'PublicLabel' }}
+                            </th>
+                            <th colspan="{{ scheduleCount }}"></th>
+                        </tr>
+                    {% endif %}
+
+                    {% for groupLocation in group.GroupLocations %}
+                        {% assign delayFactor = delayFactor | Plus:1 %}
+
+                        <tr id="group-location-{{ groupLocation.Id }}"
+                            class="group-location"
+                            hx-get="^/holiday-serve-signup/get-status-location-schedule?groupId={{ group.Id }}&groupLocationId={{ groupLocation.Id }}&scheduleIds={{ userScheduleIds | Escape }}"
+                            hx-trigger="load delay:{{ delayBase | Times:delayFactor }}ms"
+                            hx-swap="innerHTML"
+                            hx-indicator="#location-schedule-loading-{{ groupLocation.Id }}"
+                            >
+
+                            <td id="location-schedule-loading-{{ groupLocation.Id }}" class="htmx-indicator loading-indicator">
+                                Loading
+                                <img src="/Content/HelixResources/svg-spinners/3-dots-fade.svg" alt="Loading">
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endif %}

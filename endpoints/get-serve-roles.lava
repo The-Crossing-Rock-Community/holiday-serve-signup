@@ -1,0 +1,272 @@
+{% comment %}
+    {get-serve-roles}
+    loads content for Holiday Serve Signup page
+    lavaform inputs - filterfamilymember (OPTIONAL) and filtercampus (REQUIRED)
+{% endcomment %}
+
+{% capture regexpGuid %}^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})${% endcapture %}
+
+{% lava
+    assign holidayServingGroupTypeId = ConfigurationRigging.HolidayServingGroupTypeId
+    assign rockAdminSecurityGroupId = ConfigurationRigging.RockAdminSecurityGroupId
+    assign publicLabelAttrId = ConfigurationRigging.AttributeIds.PublicLabelAttrId
+    assign signUpAccessGroupAttrId = ConfigurationRigging.AttributeIds.SignUpAccessGroupAttrId
+    assign iconAttrId = ConfigurationRigging.AttributeIds.IconAttrId
+
+    assign userSelection = QueryString.UserSelection | Default:'false' | AsBoolean
+
+    assign inputErrors = false
+    assign inputErrorMessages = ""
+
+    if CurrentPerson != null
+        assign inputValue = Form.filterfamilymember | SanitizeSql | Default:'0'
+        if inputValue == "0"
+            assign personKnown = false
+        else
+            assign inputValid = inputValue | RegExMatch:regexpGuid
+            if inputValid
+                assign person = inputValue | PersonByAliasGuid
+                if person == null or person == empty
+                    assign personKnown = false
+                else
+                    assign personKnown = true
+                endif
+            else
+                assign personKnown = false
+            endif
+        endif
+    else
+        assign personKnown = false
+    endif
+
+    assign inputValue = Form.filtercampus | SanitizeSql | Default:''
+    if inputValue == ""
+        assign campus = ''
+    else
+        assign inputValid = inputValue | RegExMatch:regexpGuid
+        if inputValid
+            assign campus = inputValue | FromCache:'Campus'
+        else
+            assign inputErrors = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for Campus'
+        endif
+    endif
+%}
+
+{% if inputErrors %}
+    {% assign errCount = inputErrorMessages | Size %}
+    <div class="alert alert-danger">
+        Please correct the following {{ 'issue' | PluralizeForQuantity:errCount }}:
+        <ul>
+            {% for msg in inputErrorMessages %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+{% elseif campus != '' %}
+
+    {% sql return:'ServingRoles' holidayservinggrouptypeid:{{ holidayServingGroupTypeId }} campusid:{{ campus.Id }} publiclabelattrid:{{ publicLabelAttrId }} signupaccessgroupattrid:{{ signUpAccessGroupAttrId }} iconattrid:{{ iconAttrId }} %}
+        WITH SlotsDesiredCTE AS (
+            SELECT  gl.[GroupId] AS 'GroupId'
+                    , gl.[LocationId] AS 'LocationId'
+                    , glsc.[ScheduleId] AS 'ScheduleId'
+                    ,SUM(glsc.[DesiredCapacity]) AS 'SlotCount'
+            FROM    [dbo].[Group] g
+            INNER JOIN [dbo].[GroupLocation] gl
+                ON  gl.[GroupId] = g.[Id]
+            INNER JOIN [dbo].[Location] l
+                ON  l.[Id] = gl.[LocationId]
+            INNER JOIN [dbo].[GroupLocationSchedule] gls
+                ON  gls.[GroupLocationId] = gl.[Id]
+            INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+                ON  glsc.[GroupLocationId] = gl.[Id]
+                AND glsc.[ScheduleId] = gls.[ScheduleId]
+            INNER JOIN [dbo].[Schedule] s
+                ON  s.[Id] = glsc.[ScheduleId]
+                AND s.[EffectiveStartDate] >= GETDATE()
+                AND s.[IsActive] = 'true'
+            WHERE   g.[GroupTypeId] = @HolidayServingGroupTypeId
+                AND g.[CampusId] = @campusid
+                AND g.[IsPublic] = 'true'
+                AND g.[IsActive] = 'true'
+                AND g.[IsArchived] != 'true'
+                AND g.[DisableScheduling] != 'true'
+            GROUP BY gl.[GroupId]
+                    , gl.[LocationId]
+                    , glsc.[ScheduleId]
+        ),
+
+        SlotsFilledCTE AS (
+            SELECT  gl.[GroupId] AS 'GroupId'
+                    , gl.[LocationId] AS 'LocationId'
+                    , glsc.[ScheduleId] AS 'ScheduleId'
+                    , COUNT(a.[Id]) AS 'SlotCount'
+            FROM    [dbo].[Group] g
+            INNER JOIN [dbo].[GroupLocation] gl
+                ON  gl.[GroupId] = g.[Id]
+            INNER JOIN [dbo].[Location] l
+                ON  l.[Id] = gl.[LocationId]
+            INNER JOIN [dbo].[GroupLocationSchedule] gls
+                ON  gls.[GroupLocationId] = gl.[Id]
+            INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+                ON  glsc.[GroupLocationId] = gl.[Id]
+                AND glsc.[ScheduleId] = gls.[ScheduleId]
+            INNER JOIN [dbo].[Schedule] s
+                ON  s.[Id] = glsc.[ScheduleId]
+                AND s.[EffectiveStartDate] >= GETDATE()
+                AND s.[IsActive] = 'true'
+            LEFT OUTER JOIN [dbo].[AttendanceOccurrence] ao
+                ON  ao.[GroupId] = g.[Id]
+                AND ao.[LocationId] = l.[Id]
+                AND ao.[ScheduleId] = glsc.[ScheduleId]
+                AND ao.[OccurrenceDate] = s.[EffectiveStartDate]
+            LEFT OUTER JOIN [dbo].[Attendance] a
+                ON  a.[OccurrenceId] = ao.[Id]
+                AND a.[ScheduledToAttend] = 'true'
+            WHERE   g.[GroupTypeId] = @HolidayServingGroupTypeId
+                AND g.[CampusId] = @campusid
+                AND g.[IsPublic] = 'true'
+                AND g.[IsActive] = 'true'
+                AND g.[IsArchived] != 'true'
+                AND g.[DisableScheduling] != 'true'
+            GROUP BY gl.[GroupId]
+                    , gl.[LocationId]
+                    , glsc.[ScheduleId]
+        ),
+
+        SlotsNeededCTE AS (
+            SELECT  desiredCTE.GroupId
+                    ,desiredCTE.LocationId
+                    ,desiredCTE.ScheduleId
+                    , CASE
+                        WHEN filledCTE.SlotCount > desiredCTE.SlotCount THEN 0
+                        ELSE desiredCTE.SlotCount - filledCTE.SlotCount
+                    END AS 'SlotCount'
+            FROM    SlotsDesiredCTE desiredCTE
+            INNER JOIN  SlotsFilledCTE filledCTE
+                ON  filledCTE.GroupId = desiredCTE.GroupId
+                AND filledCTE.LocationId = desiredCTE.LocationId
+                AND filledCTE.ScheduleId = desiredCTE.ScheduleId
+        )
+        SELECT  g.[Id] AS 'GroupId'
+                ,g.[Guid] AS 'GroupGuid'
+                ,plav.[Value] AS 'PublicLabel'
+                ,CASE
+                    WHEN sagav.[Value] IS NULL THEN ''
+                    ELSE sagav.[Value]
+                 END AS 'SignUpAccessGroupGuid'
+                ,iav.[Value] AS 'Icon'
+                , SUM(desiredCTE.SlotCount) AS 'SlotsDesired'
+                , SUM(filledCTE.SlotCount) AS 'SlotsFilled'
+                , SUM(neededCTE.SlotCount) AS 'SlotsNeeded'
+                , CASE
+                    WHEN SUM(neededCTE.SlotCount) > 0 THEN 'true'
+                    ELSE 'false'
+                  END AS 'SlotsAvailable'
+        FROM    SlotsDesiredCTE desiredCTE
+        INNER JOIN  SlotsFilledCTE filledCTE
+            ON  filledCTE.GroupId = desiredCTE.GroupId
+            AND filledCTE.LocationId = desiredCTE.LocationId
+            AND filledCTE.ScheduleId = desiredCTE.ScheduleId
+        INNER JOIN  SlotsNeededCTE neededCTE
+            ON  neededCTE.GroupId = desiredCTE.GroupId
+            AND neededCTE.LocationId = desiredCTE.LocationId
+            AND neededCTE.ScheduleId = desiredCTE.ScheduleId
+        INNER JOIN [dbo].[Group] g
+            ON  g.[Id] = desiredCTE.GroupId
+        INNER JOIN [dbo].[Location] l
+            ON  l.[Id] = desiredCTE.LocationId
+        INNER JOIN [dbo].[GroupLocation] gl
+            ON  gl.[GroupId] = g.[Id]
+            AND gl.[LocationId] = l.[Id]
+        INNER JOIN [dbo].[Schedule] s
+            ON  s.[Id] = desiredCTE.ScheduleId
+            AND s.[EffectiveStartDate] >= GETDATE()
+            AND s.[IsActive] = 'true'
+        INNER JOIN [dbo].[AttributeValue] plav
+            ON  plav.[AttributeId] = @PublicLabelAttrId
+            AND plav.[EntityId] = g.[Id]
+        LEFT OUTER JOIN [dbo].[AttributeValue] sagav
+            ON  sagav.[AttributeId] = @SignUpAccessGroupAttrId
+            AND sagav.[EntityId] = g.[Id]
+        LEFT OUTER JOIN [dbo].[AttributeValue] iav
+            ON  iav.[AttributeId] = @IconAttrId
+            AND iav.[EntityId] = g.[Id]
+        GROUP BY g.[Id]
+                ,g.[Guid]
+                ,plav.[Value]
+                ,sagav.[Value]
+                ,iav.[Value]
+        ORDER BY 'SlotsAvailable' DESC
+                , 'PublicLabel';
+    {% endsql %}
+
+    {% assign firstRole = true %}
+
+    {% for servingRole in ServingRoles %}
+        {% assign includeRole = true %}
+        {% if servingRole.SignUpAccessGroupGuid != '' %}
+            {% if personKnown %}
+                {% assign accessGroup = servingRole.SignUpAccessGroupGuid | GroupByGuid %}
+                {% assign personInGroup = person | Group:accessGroup.Id | Size %}
+                {% assign isAdmin = person | IsInSecurityRole:rockAdminSecurityGroupId %}
+                {% if personInGroup < 1 and isAdmin != true %}
+                    {% assign includeRole = false %}
+                {% endif %}
+            {% else %}
+                {% assign includeRole = false %}
+            {% endif %}
+        {% endif %}
+
+        {% if includeRole and servingRole.SlotsDesired > 0 %}
+            {% if firstRole %}
+                {% assign firstRole = false %}
+                <label id="campus-roles-label" class="control-label">Which Serving Role?</label>
+                <div class="campus-role-cards">
+            {% endif %}
+            {% if servingRole.SlotsAvailable == 'true' %}
+                {% capture availableMessage %}{{ servingRole.SlotsNeeded }} {{ 'Slot' | PluralizeForQuantity:servingRole.SlotsNeeded }} Available{% endcapture %}
+                {% assign cardClass = 'slots-available' %}
+            {% else %}
+                {% assign availableMessage = 'All Slots Have Been Filled' %}
+                {% assign cardClass = 'slots-full' %}
+            {% endif %}
+
+            <div id="campus-role-card-{{ servingRole.GroupGuid }}" class="campus-role-card {{ cardClass }}"
+                {% if servingRole.SlotsAvailable == 'true' %}
+                    hx-get="^/holiday-serve-signup/get-role-locations?GroupGuid={{ servingRole.GroupGuid }}&PersonGuid={{ person.PrimaryAlias.Guid }}"
+                    hx-trigger="click"
+                    hx-target="#role-locations-container"
+                    hx-swap="innerHTML swap:0.25s"
+                {% endif %}
+                >
+                <i class="campus-role-icon {{ servingRole.Icon | Default:'far fa-user-plus' }}"></i>
+                <div class="campus-role-name">
+                    {{ servingRole.PublicLabel }}
+                </div>
+                <div class="campus-role-message">
+                    {{ availableMessage }}
+                </div>
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    {% if firstRole != true %}
+        </div>
+        <div id="role-locations-container">
+        </div>
+
+        <script>
+            $( '.campus-role-card' ).removeClass('card-selected');
+            {% if userSelection %}
+                document.getElementById('campus-roles-label').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            {% endif %}
+        </script>
+
+    {% else %}
+        <div class="alert alert-info small text-center py-1">
+            Unable to find any available Serving Roles for {{ campus.Name }} at this time. Please check back soon.
+        </div>
+    {% endif %}
+
+{% endif %}

@@ -1,0 +1,221 @@
+{% comment %}
+    {admin-get-group-member}
+    loads details for specified group member (volunteer)
+    query parameters: GroupMemberGuid (REQUIRED)
+{% endcomment %}
+
+{% capture regexpGuid %}^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})${% endcapture %}
+
+{% lava
+    assign ministryTeamKidsDefinedValueId = ConfigurationRigging.MinistryTeamKidsDefinedValueId
+    assign groupMemberNoteTypeId = ConfigurationRigging.GroupMemberNoteTypeId
+    assign locationTypeCampusValueId = ConfigurationRigging.LocationTypeCampusValueId
+
+    assign inputError = false
+    assign inputErrorMessages = ""
+
+    assign inputValue = QueryString.GroupMemberGuid | SanitizeSql | Default:''
+    assign inputValid = inputValue | RegExMatch:regexpGuid
+    if inputValid
+        assign groupMemberId = inputValue | GuidToId:'GroupMember'
+        assign gmGuid = inputValue
+    else
+        assign inputError = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for GroupMemberGuid'
+    endif
+%}
+
+{% if inputError %}
+    {% assign errCount = inputErrorMessages | Size %}
+    <div class="alert alert-danger">
+        Please correct the following {{ 'issue' | PluralizeForQuantity:errCount }}:
+        <ul>
+            {% for msg in inputErrorMessages %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+{% else %}
+    {% groupmember id:'{{ groupMemberId }}' securityenabled:'false' %}
+        {% if groupmember != null and groupmember != empty %}
+            {% assign volunteerFound = true %}
+            {% assign volunteer = groupmember %}
+        {% else %}
+            {% assign volunteerFound = false %}
+            <div class="alert alert-danger">
+                <strong>Volunteer NOT Found for input GUID: {{ gmGuid }}</strong>
+            </div>
+        {% endif %}
+    {% endgroupmember %}
+
+    {% if volunteerFound %}
+        {% assign group = volunteer.Group %}
+        {% assign ministryTeamDefinedValueId = group | Attribute:'HolidayServeMinistryTeam','Id' %}
+        {% if ministryTeamDefinedValueId == ministryTeamKidsDefinedValueId %}
+            {% assign showBkgdCheck = true %}
+            {% assign backgroundCheckWorkflowTypeId = ConfigurationRigging.BackgroundCheckWorkflowTypeId %}
+            {% assign backgroundCheckBadgeId = ConfigurationRigging.BackgroundCheckBadgeId %}
+        {% else %}
+            {% assign showBkgdCheck = false %}
+        {% endif %}
+
+        {% assign ageClass = volunteer.Person.AgeClassification %}
+        {% assign isNew = volunteer | Attribute:'NewVolunteer' | Default:'false' | AsBoolean %}
+        {% assign isAssistant = volunteer | Attribute:'Assistant' | Default:'false' | AsBoolean %}
+
+        {% sql return:'VolunteerServices' personid:{{ volunteer.Person.Id }} groupid:{{ group.Id }} %}
+            SELECT  s.[Id] AS 'ServiceId'
+                    , s.[Order] AS 'ServiceOrder'
+                    , s.[Name] AS 'ServiceTime'
+                    , s.[EffectiveStartDate] AS 'ServiceDate'
+                    , l.[Id] AS 'LocationId'
+                    , gl.[Order] AS 'LocationOrder'
+                    , l.[Name] AS 'LocationName'
+                    , l.[LocationTypeValueId] AS 'LocationTypeValueId'
+                    , a.[RSVP] AS 'RSVP'
+            FROM    [dbo].[GroupLocation] gl
+            INNER JOIN [dbo].[Location] l
+                ON  l.[Id] = gl.[LocationId]
+            INNER JOIN [dbo].[GroupLocationSchedule] gls
+                ON  gls.[GroupLocationId] = gl.[Id]
+            INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+                ON  glsc.[GroupLocationId] = gl.[Id]
+                AND glsc.[ScheduleId] = gls.[ScheduleId]
+            INNER JOIN [dbo].[Schedule] s
+                ON  s.[Id] = glsc.[ScheduleId]
+                AND s.[IsActive] = 'true'
+            INNER JOIN [dbo].[AttendanceOccurrence] ao
+                ON  ao.[GroupId] = gl.[GroupId]
+                AND ao.[LocationId] = l.[Id]
+                AND ao.[ScheduleId] = glsc.[ScheduleId]
+                AND ao.[OccurrenceDate] = s.[EffectiveStartDate]
+            INNER JOIN [dbo].[Attendance] a
+                ON  a.[OccurrenceId] = ao.[Id]
+                -- AND a.[ScheduledToAttend] = 'true'
+                AND a.[RSVP] < 3
+            INNER JOIN [dbo].[PersonAlias] pa
+                ON  pa.[Id] = a.[PersonAliasId]
+                AND pa.[PersonId] = @PersonId
+            WHERE   gl.[GroupId] = @GroupId
+            ORDER BY s.[EffectiveStartDate]
+                    , s.[Order]
+                    , gl.[Order]
+        {% endsql %}
+        {% assign serviceCount = VolunteerServices | Size %}
+
+        {% note where:'NoteTypeId == {{ groupMemberNoteTypeId }} && EntityId == {{ volunteer.Id }}' iterator:'notes' sort:'CreatedDateTime' securityenabled:'false' %}
+            {% assign noteCount = notes | Size %}
+            {% if noteCount > 0 %}
+                {% assign hasNotes = true %}
+                {%- capture noteMsg -%}
+                    {% for note in notes %}
+                        [{{ note.CreatedDateTime | Date:'MMM d' }} {{ note.CreatedDateTime | Date:'h:mmt' | Downcase }}] {{ note.Text }}
+                        {% unless forloop.last %}<hr class="my-1">{% endunless %}
+                    {% endfor %}
+                {%- endcapture -%}
+            {% else %}
+                {% assign hasNotes = false %}
+            {% endif %}
+        {% endnote %}
+
+        <th scope="row" class="volunteer-row-header volunteer-name">
+            <a target="_blank" href="/Person/{{ volunteer.PersonId }}">
+                {{ volunteer.Person.FullName }}
+            </a>
+            {% if ageClass == 2 %}
+                <i class="fa fa-child volunteer-age-class" data-toggle="tooltip" data-placement="auto top" data-original-title="Child"></i>
+            {% elseif ageClass != 1 %}
+                <i class="fa fa-question volunteer-age-class" data-toggle="tooltip" data-placement="auto top" data-original-title="Age unknown"></i>
+            {% endif %}
+            {% if hasNotes %}
+                <span class="volunteer-notes ml-1">
+                    <i class="far fa-comment"
+                        data-toggle="tooltip"
+                        data-placement="auto right"
+                        data-html="true"
+                        data-container="#panel-holiday-serve-admin-group-volunteers"
+                        data-original-title="{{ noteMsg | Escape }}">
+                    </i>
+                </span>
+            {% endif %}
+        </th>
+        <td class="volunteer-row volunteer-status">{{ volunteer.GroupMemberStatus }}</td>
+        <td class="volunteer-row volunteer-date-added">{{ volunteer.DateTimeAdded | Date:'MM/dd/yyyy' }}</td>
+
+        {% if showBkgdCheck %}
+            {% if ageClass != 2 %}
+
+                {% capture bkgdCheckJSON %}{[ bkgdcheckstatus personid:'{{ volunteer.Person.Id }}' ]}{% endcapture %}
+                {% assign bkgdCheck = bkgdCheckJSON | FromJSON %}
+
+                <td class="volunteer-row volunteer-bkgd-check" >
+                    <a target="_blank" href="/WorkflowEntry/{{ backgroundCheckWorkflowTypeId }}?PersonId={{ volunteer.PersonId }}">
+                        <i class="{{ bkgdCheck.IconClass }} fa-shield-check" style="color: {{ bkgdCheck.IconColor }}; opacity: {{ bkgdCheck.IconOpacity }};" data-toggle="tooltip"  data-placement="auto right" data-original-title="{{ bkgdCheck.StatusDescription }}"></i>
+                    </a>
+                </td>
+            {%- else -%}
+                <td class="volunteer-row volunteer-bkgd-check"><span data-toggle="tooltip" data-placement="auto right" data-original-title="Not needed - Child">-</span></td>
+            {%- endif -%}
+        {% endif %}
+
+        <td class="volunteer-row volunteer-new">
+            {% if isNew %}
+                <i class="fa fa-check"></i>
+            {% endif %}
+        </td>
+        <td class="volunteer-row volunteer-assistant">
+            {% if isAssistant %}
+                <i class="fa fa-check"></i>
+            {% endif %}
+        </td>
+        <td class="volunteer-row volunteer-services">
+            {% if serviceCount > 0 %}
+                <ul class="volunteer-service-list list-unstyled">
+                    {% for service in VolunteerServices %}
+                        {% case service.RSVP %}
+                            {% when '0' %}
+                                {% assign rsvp-tooltip = 'Declined' %}
+                                {% assign rsvp-class = 'rsvp-no' %}
+                                {% assign rsvp-icon = 'fa fa-thumbs-down' %}
+                            {% when '1' %}
+                                {% assign rsvp-tooltip = 'Accepted' %}
+                                {% assign rsvp-class = 'rsvp-yes' %}
+                                {% assign rsvp-icon = 'far fa-thumbs-up' %}
+                            {% when '2' %}
+                                {% assign rsvp-tooltip = 'Maybe' %}
+                                {% assign rsvp-class = 'rsvp-maybe' %}
+                                {% assign rsvp-icon = 'far fa-question-circle' %}
+                            {% else %}
+                                {% assign rsvp-tooltip = 'Unknown' %}
+                                {% assign rsvp-class = 'rsvp-unknown' %}
+                                {% assign rsvp-icon = 'far fa-question' %}
+                        {% endcase %}
+
+                        {% assign serviceDay = service.ServiceDate | Date:'d' | NumberToOrdinal %}
+
+                        {%- capture serviceName -%}
+                            {{- service.ServiceDate | Date:'ddd, MMM' }} {{ serviceDay }}
+                            {{ service.ServiceTime | Split:' ' | Last }}
+                            {% if service.LocationTypeValueId != locationTypeCampusValueId -%}
+                                - {{ service.LocationName | Remove:' - SERVE' }}
+                            {%- endif -%}
+                        {%- endcapture%}
+                        <li class="{{ rsvp-class }}">{{ serviceName }} <i class="{{ rsvp-icon }}" data-toggle="tooltip" data-placement="auto top" data-original-title="{{ rsvp-tooltip }}"></i></li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </td>
+
+        <td class="volunteer-row volunteer-actions">
+            <div class="volunteer-action edit-volunteer"
+                hx-get="^/holiday-serve-signup/admin-edit-group-member?GroupMemberGuid={{ volunteer.Guid }}"
+                hx-trigger="click"
+                hx-target="#volunteer-edit-modal"
+                hx-swap="innerHTML"
+                data-toggle="modal"
+                data-target="#volunteer-edit-modal">
+                <i class="fa fa-pencil" data-toggle="tooltip" data-placement="left" data-original-title="Edit Volunteer"></i>
+            </div>
+        </td>
+    {% endif %}
+{% endif %}

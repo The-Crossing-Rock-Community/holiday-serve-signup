@@ -1,0 +1,19 @@
+{% comment %}
+    Introduction paragraph and login details for Holiday Serve Signup page
+{% endcomment %}
+
+<div class="intro-paragraph">
+    <div class="intro-text">
+        Join the fun and serve this Easter! We will be hosting thousands of people at our Easter services this year from April 3-5th, many of whom have never stepped foot in our building before! We get to show them what it’s like to be a part of this fabulous community, and we can’t do it without you. Greet guests in the parking lot or lobby, welcome families to KidsCrossing, rock babies in the nursery, or engage a small group of elementary kids. First time serving with us? No problem. Sign up by Sunday, March 29th and we'll follow up with additional details
+    </div>
+
+
+    <div class="alert alert-info login-text">
+        {% if CurrentPerson == null %}
+            Some opportunites can only be seen when you are <a class="text-bold" href="/login?returnurl={{ 'Global' | Page:'Url' }}">logged in</a> to our website.
+        {% else %}
+            You are currently logged in as <strong>{{ CurrentPerson.FullName }}</strong>. You can sign up yourself or anyone from your family. If this is not you (or someone in your family), please <a class="text-bold" href="/login?returnurl={{ 'Global' | Page:'Url' }}">log-in</a> as yourself.
+        {% endif %}
+    </div>
+</div>
+

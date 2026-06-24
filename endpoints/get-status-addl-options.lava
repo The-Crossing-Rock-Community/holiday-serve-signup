@@ -1,0 +1,130 @@
+{% comment %}
+    {get-status-addl-options}
+    loads the groups & schedules based on the Ministry & Campus chosen on the form
+    lavaform inputs - optionministry (REQUIRED) and optioncampus (REQUIRED)
+{% endcomment %}
+
+{% lava
+    assign holidayServeMinistryTeamDefinedTypeId = ConfigurationRigging.HolidayServeMinistryTeamDefinedTypeId
+    assign campusStatusValueIdOpen = ConfigurationRigging.CampusStatusValueIdOpen
+    assign campusTypeValueIdPhysical = ConfigurationRigging.CampusTypeValueIdPhysical
+    assign holidayServingGroupTypeId = ConfigurationRigging.HolidayServingGroupTypeId
+    assign ministryTeamAttrId = ConfigurationRigging.AttributeIds.MinistryTeamAttrId
+
+    assign ministryTeamDVs = holidayServeMinistryTeamDefinedTypeId | FromCache:'DefinedType' | Property:'DefinedValues' | Where:'IsActive','true'
+    assign ministryTeamDVIds = ministryTeamDVs | Select:'Id' | Join:','
+
+    assign inputMinistryTeam = Form.optionministry | SanitizeSql | Default:''
+    if inputMinistryTeam != '' and ministryTeamDVIds contains inputMinistryTeam
+        assign optionMinistryTeam = inputMinistryTeam | FromCache:'DefinedValue' | Property:'Guid'
+    else
+        assign optionMinistryTeam = ''
+    endif
+
+    assign campuses = 'ALL' | FromCache:'Campus' | Where:'CampusStatusValueId', campusStatusValueIdOpen | Where:'CampusTypeValueId', campusTypeValueIdPhysical | OrderBy:'Name'
+    assign campusIds = campuses | Select:'Id' | Join:','
+
+    assign inputCampus = Form.optioncampus | SanitizeSql | Default:''
+    if inputCampus != '' and campusIds contains inputCampus
+        assign optionCampus = inputCampus
+    else
+        assign optionCampus = ''
+    endif
+    assign userMinistryTeam = CurrentPerson | GetUserPreference:'holiday-serve-status-board-ministry-team'
+    assign userCampus = CurrentPerson | GetUserPreference:'holiday-serve-status-board-campus'
+    assign userGroupIds = CurrentPerson | GetUserPreference:'holiday-serve-status-board-group-ids'
+
+    if inputMinistryTeam == userMinistryTeam and inputCampus == userCampus
+        assign teamCampusChanged = false
+    else
+        assign teamCampusChanged = true
+    endif
+%}
+
+{% if optionMinistryTeam == '' or optionCampus == '' %}
+    <script>
+        openOptionsEntry();
+    </script>
+{% else %}
+    {% group where:'GroupTypeId == {{ holidayServingGroupTypeId }} && IsActive == true && IsArchived != true && HolidayServeMinistryTeam == "{{ optionMinistryTeam }}" && CampusId == {{ optionCampus }}' iterator:'groups' securityenabled:'false' %}
+        {% assign groupCount = groups | Size %}
+        {% assign groupsSorted = groups | SortByAttribute:'PublicLabel' %}
+        {% assign groupIds = groupsSorted | Select:'Id' | Join:',' %}
+    {% endgroup %}
+
+    {% if groupCount > 0 %}
+        {% if teamCampusChanged or userGroupIds == null or userGroupIds == empty %}
+            {% assign userGroupIds = groupIds %}
+        {% endif %}
+
+        <div id="option-groups" class="option-wrapper option-groups">
+            {[ checkboxlistxing name:'optiongroups' label:'Which Groups?' value:'{{ userGroupIds }}' columns:'{{ groupCount | DividedBy:2 | Ceiling | AtMost:5 }}' ]}
+                {% for group in groups %}
+                    [[ item value:'{{ group.Id }}' text:'{{ group | Attribute:'PublicLabel' | Escape }}' ]][[ enditem ]]
+                {% endfor %}
+            {[ endcheckboxlistxing ]}
+            <div class="btn btn-link btn-xs select-all" onclick="selectAllGroups(true)">Select All</div>
+            <div class="btn btn-link btn-xs select-all" onclick="selectAllGroups(false)">Select None</div>
+        </div>
+    {% else %}
+        <div class="alert alert-warning">
+            No active groups found for the selected Ministry Team and Campus.
+        </div>
+    {% endif %}
+
+    {% sql return:'schedules' holidayservinggrouptypeid:'{{ holidayServingGroupTypeId }}' ministryteamattrid:'{{ ministryTeamAttrId }}' ministryteamguid:'{{ optionMinistryTeam }}' campusid:'{{ optionCampus }}' %}
+        SELECT  DISTINCT
+                s.[Id] AS 'Id'
+                , s.[Name] AS 'Name'
+                , s.[EffectiveStartDate] AS 'ServiceDate'
+                , s.[Order]
+        FROM    [dbo].[Group] g
+        INNER JOIN [dbo].[GroupLocation] gl
+            ON  gl.[GroupId] = g.[Id]
+        INNER JOIN [dbo].[AttributeValue] mtav
+            ON  mtav.[AttributeId] = @MinistryTeamAttrId
+            AND mtav.[EntityId] = g.[Id]
+            AND mtav.[Value] = @MinistryTeamGuid
+        INNER JOIN [dbo].[GroupLocationSchedule] gls
+            ON  gls.[GroupLocationId] = gl.[Id]
+        INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+            ON  glsc.[GroupLocationId] = gl.[Id]
+            AND glsc.[ScheduleId] = gls.[ScheduleId]
+        INNER JOIN [dbo].[Schedule] s
+            ON  s.[Id] = glsc.[ScheduleId]
+            AND s.[IsActive] = 'true'
+        WHERE   g.[GroupTypeId] = @HolidayServingGroupTypeId
+        AND     g.[IsActive] = 'true'
+        AND     g.[IsArchived] != 'true'
+        AND     g.[DisableScheduling] != 'true'
+        AND     g.[CampusId] = @CampusId
+        ORDER BY s.[EffectiveStartDate]
+                , s.[Order]
+    {% endsql %}
+
+    {% assign scheduleCount = schedules | Size %}
+    {% assign scheduleIds = schedules | Select:'Id' | Join:',' %}
+    {% assign userScheduleIds = CurrentPerson | GetUserPreference:'holiday-serve-status-board-schedule-ids' | Default:scheduleIds %}
+
+    {% if scheduleCount > 0 %}
+        <div id="option-schedules" class="option-wrapper option-schedules">
+            {[ checkboxlistxing name:'optionschedules' label:'Which Services?' value:'{{ userScheduleIds }}' columns:'{{ scheduleCount | DividedBy:2 | Ceiling }}' ]}
+                {% for schedule in schedules %}
+                    {% assign serviceDay = schedule.ServiceDate | Date:'d' | NumberToOrdinal %}
+                    {%- capture serviceName -%}
+                        {{ schedule.ServiceDate | Date:'ddd, MMM' }} {{ serviceDay }} {{ schedule.Name | Split:' ' | Last }}
+                    {%- endcapture -%}
+
+                    [[ item value:'{{ schedule.Id }}' text:'{{ serviceName | Escape }}' ]][[ enditem ]]
+                {% endfor %}
+            {[ endcheckboxlistxing ]}
+            <div class="btn btn-link btn-xs select-all" onclick="selectAllSchedules(true)">Select All</div>
+            <div class="btn btn-link btn-xs select-all" onclick="selectAllSchedules(false)">Select None</div>
+        </div>
+    {% else %}
+        <div class="alert alert-warning">
+            No active schedules found for the selected Ministry Team and Campus.
+        </div>
+    {% endif %}
+{% endif %}
+

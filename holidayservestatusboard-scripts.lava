@@ -1,0 +1,51 @@
+{% comment %}
+    scripts for Holiday Serve Status Board page
+{% endcomment %}
+
+<script>
+    function openOptionsEntry() {
+        $( '#options-entry' ).slideDown(700).addClass( 'is-open' );
+        $( '#options-button' ).addClass( 'is-open' );
+        $( '#status-board-wrapper' ).slideUp(700);
+    };
+    function closeOptionsEntry() {
+        $( '#options-entry' ).slideUp(700).removeClass( 'is-open' );
+        $( '#options-button' ).removeClass( 'is-open' );
+        $( '#status-board-wrapper' ).slideDown(700);
+    };
+    function selectAllGroups(flag) {
+        $( 'input[name="optiongroups"]').prop( 'checked', flag );
+    }
+    function selectAllSchedules(flag) {
+        $('input[name="optionschedules"]').prop('checked', flag);
+    }
+
+    function printStatusBoard() {
+        // get _only_ the objects that need to be printed
+        var divContents = $("#holiday-serve-status-board").clone();
+        divContents.find(".hidden-print").remove();
+
+        // placeholder for the html objects that need to be stringified and printied
+        var contentHolder = $('#status-board-print');
+        contentHolder.empty();
+        divContents.each(function() {
+            contentHolder.append($(this).html());
+        })
+
+        var printWindow = window.open('', '', 'height=600,width=800');
+        var $printWindow = $(printWindow);
+        printWindow.document.write('<html data-bs-theme="light" theme="light"><head><meta name="color-scheme" content="light"><link rel="stylesheet" href="/Themes/RockNextGen/Styles/theme.css"/><link rel="stylesheet" href="/Themes/RockNextGen/XingAssets/HolidayServe/HolidayServeStatusBoardPrint.css"/><title>Holiday Serve Status Board</title><style>html { color-scheme: light; } .hidden-print { display:none };</style>');
+        printWindow.document.write('</head><body>');
+        printWindow.document.write('<div id="status-board-print">' + contentHolder.html() + '</div>');
+        printWindow.document.write('<hr><div class="print-date">Printed {{ 'Now' | Date:'M/d/yy hh:mm:ss tt' }}</div>');
+        printWindow.document.write('<style>#printBtn {display:none;}</style>');
+        printWindow.document.write('<style>#noprint {display:none;}</style>');
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        setTimeout(function() {printWindow.print();}, 1000); //setTimeout required because Chrome tries to print before it finishes writing the document
+    };
+
+    document.body.addEventListener('htmx:afterSettle', function(evt) {
+        $(evt.detail.elt).find('[data-toggle="tooltip"]').tooltip();
+    });
+</script>

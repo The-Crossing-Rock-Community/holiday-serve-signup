@@ -1,0 +1,156 @@
+{% comment %}
+    {get-status-location-schedule}
+    loads a "group-location" row with the volunteers on the schedule
+    querystring inputs - groupId (REQUIRED), groupLocationId (REQUIRED), scheduleIds (REQUIRED)
+{% endcomment %}
+
+{% capture regexpId %}^\d*${% endcapture %}
+{% capture regexpIds %}^\d+(?:,\d+)*${% endcapture %}
+
+{% lava
+    assign holidayServingGroupTypeId = ConfigurationRigging.HolidayServingGroupTypeId
+
+    assign inputError = false
+    assign inputErrorMessages = ""
+
+    assign inputValue = QueryString.groupId | SanitizeSql | Default:''
+    if inputValue == ""
+        assign inputError = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Missing required input: GroupId'
+    else
+        assign validInput = inputValue | RegExMatch:regexpId
+        if validInput
+            assign groupId = inputValue
+            assign group = groupId | GroupById
+            if group == null or group == empty
+                assign inputError = true
+                assign inputErrorMessages = inputErrorMessages | AddToArray:'Group not found for input GroupId'
+            elseif group.GroupTypeId != holidayServingGroupTypeId
+                assign inputError = true
+                assign inputErrorMessages = inputErrorMessages | AddToArray:'Input GroupId MUST be for a Holiday Serving group'
+            endif
+        else
+            assign inputError = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for GroupId'
+        endif
+    endif
+
+    assign inputValue = QueryString.groupLocationId | SanitizeSql | Default:''
+    if inputValue == ""
+        assign inputError = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Missing required input: GroupLocationId'
+    else
+        assign validInput = inputValue | RegExMatch:regexpId
+        if validInput
+            assign groupLocationId = inputValue
+            assign groupLocation = group.GroupLocations | Where:'Id',groupLocationId | First
+            if groupLocation == null or groupLocation == empty
+                assign inputError = true
+                assign inputErrorMessages = inputErrorMessages | AddToArray:'GroupLocation not found for input GroupLocationId'
+            endif
+        else
+            assign inputError = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for GroupLocationId'
+        endif
+    endif
+
+    assign inputValue = QueryString.scheduleIds | SanitizeSql | Default:''
+    if inputValue == ""
+        assign inputError = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Missing required input: ScheduleIds'
+    else
+        assign validInput = inputValue | RegExMatch:regexpIds
+        if validInput
+            assign scheduleIds = inputValue | Split:','
+        else
+            assign inputError = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for ScheduleIds'
+        endif
+    endif
+%}
+
+{% if inputError %}
+    {% assign errCount = inputErrorMessages | Size %}
+    <div class="alert alert-danger">
+        Please correct the following {{ 'issue' | PluralizeForQuantity:errCount }}:
+        <ul>
+            {% for msg in inputErrorMessages %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+{% else %}
+    <th scope="row" class="group-location-column location-name">
+        {{ groupLocation.Location.Name | Remove:' - SERVE' }}
+    </th>
+
+    {% assign schedules = groupLocation.Schedules | OrderBy:'EffectiveStartDate,Order' %}
+
+    {% for schedule in schedules %}
+        {% assign scheduleIdString = schedule.Id | AsString %}
+        {% if scheduleIds contains scheduleIdString %}
+            <!-- get the total slots for this schedule -->
+            {% sql return:'Results' grouplocationid:{{ groupLocation.Id }} scheduleid:{{ schedule.Id }} %}
+                SELECT  glsc.[DesiredCapacity] AS 'TotalSlots'
+                FROM    [dbo].[GroupLocationScheduleConfig] glsc
+                WHERE   glsc.[GroupLocationId] = @GroupLocationId
+                AND     glsc.[ScheduleId] = @ScheduleId
+            {% endsql %}
+            {% assign scheduleSlots = Results | First | Property:'TotalSlots' | Default:'0' |  AsInteger %}
+
+            {% assign occurrenceDate = schedule.EffectiveStartDate | Date:'yyyy-MM-dd' %}
+
+            {% attendanceoccurrence where:'GroupId == {{ groupId }} && LocationId == {{ groupLocation.LocationId }} && ScheduleId == {{ schedule.Id }} && OccurrenceDate == "{{ occurrenceDate }}"' limit:'1' iterator:'AttendanceOccurrences' securityenabled:'false' %}
+                {% assign aoCount = AttendanceOccurrences | Size %}
+                {% if aoCount > 0 %}
+                    {% assign attendanceOccurrence = AttendanceOccurrences | First %}
+                    {% assign volunteers = attendanceOccurrence.Attendees | Where:'ScheduledToAttend','true' | OrderBy:'Person.FullName' %}
+                    {% assign volunteerCount = volunteers | Size %}
+                {% else %}
+                    {% assign volunteerCount = 0 %}
+                {% endif %}
+            {% endattendanceoccurrence %}
+
+            <td class="location-schedule">
+                {% if scheduleSlots > 0 or volunteerCount > 0 %}
+                    <div class="volunteer-list">
+                        {% if volunteerCount > 0 %}
+                            {% for volunteer in volunteers %}
+                                {% assign volunteerPerson = volunteer.PersonAlias.Person %}
+                                {% assign ageClass = volunteerPerson.AgeClassification %}
+                                {% assign gm = volunteerPerson | Group:groupId,'All' | First %}
+                                {% assign volunteerStatus = gm.GroupMemberStatus | ToCssClass %}
+                                {% assign isNew = gm | Attribute:'NewVolunteer' | Default:'false' | AsBoolean %}
+                                {% assign isAssistant = gm | Attribute:'Assistant' | Default:'false' | AsBoolean %}
+
+                                <div class="slot slot-filled volunteer-{{ volunteerStatus }}">
+                                    <span class="slot-volunteer">{{ volunteer.PersonAlias.Person.FullName }}</span>
+                                    {% if ageClass == 2 %}
+                                        <i class="far fa-child volunteer-age-class" data-toggle="tooltip" data-placement="auto top" data-original-title="Child"></i>
+                                    {% elseif ageClass != 1 %}
+                                        <i class="far fa-question volunteer-age-class" data-toggle="tooltip" data-placement="auto top" data-original-title="Age unknown"></i>
+                                    {% endif %}
+                                    {% if isNew %}
+                                        <i class="far fa-star volunteer-new" data-toggle="tooltip" data-placement="auto top" data-original-title="New Volunteer"></i>
+                                    {% endif %}
+                                    {% if isAssistant %}
+                                        <i class="far fa-hands-helping volunteer-assistant" data-toggle="tooltip" data-placement="auto top" data-original-title="Assistant"></i>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                        {% assign endSlot = volunteerCount | Plus:1 %}
+                        {% for i in (endSlot..scheduleSlots) %}
+                            <div class="slot slot-empty show-counts-{{ forloop.first }}">
+                                {% if forloop.first %}
+                                    {% assign neededSlots = scheduleSlots | Minus:volunteerCount %}
+                                    {{ neededSlots }} {{ 'volunteer' | PluralizeForQuantity:neededSlots }} needed
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </td>
+        {% endif %}
+    {% endfor %}
+{% endif %}

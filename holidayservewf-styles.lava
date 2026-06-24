@@ -1,0 +1,62 @@
+{% assign currentMonth = 'Now' | Date:'m' | AsInteger %}
+{% assign pagePath = 'Global' | Page:'Path' %}
+{% if pagePath contains 'servechristmas' %}
+    {{ 'Serve<br>Christmas' | SetPageTitle:'PageTitle' }}
+    {{ 'Serve Christmas' | SetPageTitle:'BrowserTitle' }}
+{% elseif pagePath contains 'serveeaster' %}
+    {{ 'Serve<br>Easter' | SetPageTitle:'PageTitle' }}
+    {{ 'Serve Easter' | SetPageTitle:'BrowserTitle' }}
+{% endif %}
+
+{%- stylesheet id:'holidayservewfCSS' compile:'less' -%}
+    :root {
+        --secondary-color-lifeblood: #a1302b;
+    }
+
+    .holiday-serve-signup {
+        .xingform {
+            font-size: 22px;
+
+            @media (max-width: 990px) {
+                font-size: 20px;
+            }
+            @media (max-width: 768px) {
+                font-size: 19px;
+            }
+            @media (max-width: 500px) {
+                font-size: 18px;
+            }
+
+            .intro-text {
+                line-height: 1.6;
+            }
+
+            h3 {
+                letter-spacing: 2.0px;
+            }
+
+            .signup-role {
+                font-family: neue-regular;
+                font-size: 0.9em;
+                letter-spacing: 1.2px;
+                text-transform: uppercase;
+            }
+            ul.signup-services {
+                margin-bottom: 5px;
+            }
+
+            .btn.btn-primary {
+                color: #fff;
+                background-color: var(--secondary-color-lifeblood);
+                padding: 6px 12px;
+                border-radius: 2px;
+                letter-spacing: 1.5px;
+                font-size: 0.9em;
+
+                &:hover {
+                    opacity: 0.8;
+                }
+            }
+        }
+    }
+{% endstylesheet %}

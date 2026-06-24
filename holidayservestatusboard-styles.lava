@@ -1,0 +1,266 @@
+{% comment %}
+    styles for Holiday Serve Status Board page
+{% endcomment %}
+
+{%- stylesheet id:'holidayServeStatusBoardCSS' compile:'less' -%}
+    :root {
+        --secondary-color-lifeblood: #a1302b;
+    }
+
+    #holiday-serve-status-board {
+        font-size: 18px;
+        margin-bottom: 0px;
+
+        @media screen and (max-width: 990px) {
+            font-size: 17px;
+        }
+        @media screen and (max-width: 768px) {
+            font-size: 16px;
+        }
+
+        .panel-heading {
+            color: #fff;
+            background-color: var(--secondary-color-lifeblood);
+            padding: 8px 12px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: auto;
+            align-items: center;
+
+            .panel-title {
+                display: flex;
+                flex-wrap: wrap;
+                justify-self: left;
+                justify-content: space-between;
+                align-items: center;
+                font-weight: bold;
+            }
+
+            .panel-options-summary {
+                justify-self: center;
+                font-weight: bold;
+            }
+
+            .panel-actions {
+                display: flex;
+                flex-wrap: nowrap;
+                column-gap: 5px;
+                justify-content: flex-end;
+                align-content: center;
+                margin: 0;
+
+                @media print {
+                    display: none;
+                }
+
+                .btn-options {
+                    transition: opacity 0.3s ease-in-out;
+
+                    &.is-open {
+                        opacity: 0;
+                    }
+                }
+
+                @media screen and (max-width: 500px) {
+                    #print-button {
+                        display: none;
+                    }
+                }
+            }
+
+            @media (max-width: 768px) {
+                grid-template-columns: 100%;
+                grid-template-rows: repeat(3, auto);
+
+                .panel-title,
+                .panel-options-summary {
+                    justify-self: center;
+                }
+                .panel-actions {
+                    margin-top: 8px;
+                }
+            }
+
+        }
+
+        .panel-body {
+            padding: 4px 0px;
+
+            #options-entry {
+                margin: 10px 15px 10px 15px;
+                padding: 5px 20px 10px 20px;
+                border: 1px solid #cbcbcb;
+
+                &.need-options-false {
+                    display: none;
+                }
+
+                .options-grid {
+                    display: flex;
+                    flex-direction: column;
+                    row-gap: 10px;
+                    margin-bottom: 15px;
+
+                    .option-wrapper {
+                        padding: 4px 8px;
+                        width: max-content;
+                        max-width: 100%;
+
+                        .form-group {
+                            margin: 0px;
+                        }
+                    }
+
+                    .option-ministry {
+                        .in-columns {
+                            column-width: 180px;
+                        }
+                    }
+
+                    #additional-options {
+                        opacity: 1;
+                        transition: opacity 0.25s ease-in;
+
+                        &.htmx-swapping {
+                            opacity: 0;
+                            transition: opacity 0.25s ease-out;
+                        }
+                    }
+
+                    .option-groups,
+                    .option-schedules {
+                        .in-columns {
+                            column-width: 260px;
+                        }
+                    }
+                }
+
+                .options-actions {
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: flex-start;
+                    column-gap: 5px;
+                }
+            }
+
+            #status-board-wrapper {
+                max-height: calc(~"100vh - 300px");
+                max-width: 100%;
+                overflow-x: auto;
+                overflow-y: auto;
+                padding-bottom: 15px;
+
+                @media screen and (max-width: 991px) {
+                    max-height: calc(~"100vh - 275px");
+                }
+
+                @media screen and (max-width: 767px) {
+                    max-height: calc(~"100vh - 250px");
+                }
+
+                @media screen and (max-width: 499px) {
+                    max-height: calc(~"100vh - 300px");
+                }
+
+                .table.table-status-board {
+                    width: max-content;
+
+                    thead {
+                        position: sticky;
+                        top: 0;
+                        z-index: 20;
+                        color: var(--color-interface-strongest);
+                        background-color: var(--color-interface-softest);
+                    }
+
+                    tr.group-header {
+                        background-color: var(--color-interface-soft);
+
+                        th {
+                            padding: 4px 8px;
+                            line-height: 1.0em;
+                            font-style: italic;
+                            font-size: 0.95em;
+                            white-space: nowrap;
+                            text-align: left;
+                            vertical-align: bottom;
+                            background-color: var(--color-interface-soft);
+                        }
+                    }
+
+                    .group-location-column {
+                        position: sticky;
+                        left: 0;
+                        z-index: 10;
+                        color: var(--color-interface-strongest);
+                        background-color: var(--color-interface-softest);
+                        font-size: 0.9em;
+                        min-width: 125px;
+                        max-width: 200px;
+                        padding-right: 10px;
+
+                        &.group-name {
+                            font-weight: bold;
+                            text-align: left;
+                        }
+
+                        &.location-name {
+                            font-weight: normal;
+                            text-align: right;
+                        }
+                    }
+
+                    .schedule-column {
+                        min-width: 125px;
+                        border-left: 1px solid var(--color-interface-soft);
+
+                        &:last-child {
+                            border-right: 1px solid var(--color-interface-soft);
+                        }
+                    }
+
+                    .schedule-header {
+                        white-space: nowrap;
+                    }
+
+                    .location-schedule {
+                        width: max-content;
+                        min-width: 125px;
+                        padding: 0;
+                        margin: 0;
+                        overflow: hidden;
+                        border-left: 1px solid var(--color-interface-soft);
+                        white-space: nowrap;
+                        vertical-align: top;
+
+                        .volunteer-list {
+                            padding: 0;
+                            margin: 0;
+                            display: grid;
+                            grid-template-columns: auto;
+                            row-gap: 0px;
+
+                            .slot {
+                                min-height: 36px;
+                                padding: 4px 30px 4px 10px;
+                                border-bottom: 1px solid var(--color-interface-soft);
+
+                                &.slot-filled {
+                                    font-size: 0.75em;
+                                    background-color: var(--color-success-soft);
+                                }
+                                &.slot-empty {
+                                    font-size: 0.75em;
+                                    font-style: italic;
+                                    background-color: var(--color-warning-soft);
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+{%- endstylesheet -%}

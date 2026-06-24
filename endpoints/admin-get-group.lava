@@ -1,0 +1,341 @@
+{% comment %}
+    {admin-get-group}
+    loads details for specified group
+    query parameters: GroupGuid (REQUIRED)
+{% endcomment %}
+
+{% capture regexpGuid %}^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})${% endcapture %}
+
+{% lava
+    assign ministryTeamKidsDefinedValueId = ConfigurationRigging.MinistryTeamKidsDefinedValueId
+    assign groupMemberNoteTypeId = ConfigurationRigging.GroupMemberNoteTypeId
+    assign groupAdminPagePath = ConfigurationRigging.GroupAdminPagePath
+
+    assign inputError = false
+    assign inputErrorMessages = ""
+
+    assign inputValue = QueryString.GroupGuid | SanitizeSql | Default:''
+    assign inputValid = inputValue | RegExMatch:regexpGuid
+    if inputValid
+        assign group = inputValue | GroupByGuid
+
+        if group != null and group != empty
+            assign ministryTeamDefinedValueId = group | Attribute:'HolidayServeMinistryTeam','Id'
+            if ministryTeamDefinedValueId == ministryTeamKidsDefinedValueId
+                assign showBkgdCheck = true
+                assign backgroundCheckBadgeId = ConfigurationRigging.BackgroundCheckBadgeId
+            else
+                assign showBkgdCheck = false
+            endif
+            assign volunteers = group.Members | OrderBy:'GroupMemberStatus desc, Person.LastName, Person.FirstName'
+            assign volunteerCount = volunteers | Size
+        else
+            assign inputError = true
+            assign inputErrorMessages = inputErrorMessages | AddToArray:'Group not found for input GroupGuid'
+        endif
+    else
+        assign inputError = true
+        assign inputErrorMessages = inputErrorMessages | AddToArray:'Unexpected value provided for GroupGuid'
+    endif
+%}
+
+{% if inputError %}
+    {% assign errCount = inputErrorMessages | Size %}
+    <div class="alert alert-danger">
+        Please correct the following {{ 'issue' | PluralizeForQuantity:errCount }}:
+        <ul>
+            {% for msg in inputErrorMessages %}
+            <li>{{ msg }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+{% else %}
+
+    {% assign groupName = group | Attribute:'PublicLabel' | Default:group.Name %}
+    {% assign groupIcon = group | Attribute:'Icon' %}
+    {% assign groupLocations = group.GroupLocations %}
+
+    <div id="panel-holiday-serve-admin-group-details" class="panel panel-default panel-group-details">
+        <div class="panel-heading">
+            <div class="panel-title">{{ groupName }}</div>
+            <i class="{{ groupIcon }}"></i>
+        </div>
+        <div class="panel-body">
+
+            {% assign needTableHeader = true %}
+
+            <table class="table table-condensed table-locations">
+                {% sql return:'AllLocationServices' groupid:{{ group.Id }} %}
+                    WITH SlotsDesiredCTE AS (
+                        SELECT  gl.[GroupId] AS 'GroupId'
+                                , gl.[Id] AS 'GroupLocationId'
+                                , gl.[LocationId] AS 'LocationId'
+                                , glsc.[ScheduleId] AS 'ScheduleId'
+                                ,SUM(glsc.[DesiredCapacity]) AS 'SlotCount'
+                        FROM    [dbo].[Group] g
+                        INNER JOIN [dbo].[GroupLocation] gl
+                            ON  gl.[GroupId] = g.[Id]
+                        INNER JOIN [dbo].[Location] l
+                            ON  l.[Id] = gl.[LocationId]
+                        INNER JOIN [dbo].[GroupLocationSchedule] gls
+                            ON  gls.[GroupLocationId] = gl.[Id]
+                        INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+                            ON  glsc.[GroupLocationId] = gl.[Id]
+                            AND glsc.[ScheduleId] = gls.[ScheduleId]
+                        INNER JOIN [dbo].[Schedule] s
+                            ON  s.[Id] = glsc.[ScheduleId]
+                            AND s.[IsActive] = 'true'
+                        WHERE   g.[Id] = @groupid
+                            AND g.[IsActive] = 'true'
+                            AND g.[IsArchived] != 'true'
+                            AND g.[DisableScheduling] != 'true'
+                        GROUP BY gl.[GroupId]
+                                , gl.[Id]
+                                , gl.[LocationId]
+                                , glsc.[ScheduleId]
+                    ),
+
+                    SlotsFilledCTE AS (
+                        SELECT  gl.[GroupId] AS 'GroupId'
+                                , gl.[Id] AS 'GroupLocationId'
+                                , gl.[LocationId] AS 'LocationId'
+                                , glsc.[ScheduleId] AS 'ScheduleId'
+                                , COUNT(a.[Id]) AS 'SlotCount'
+                        FROM    [dbo].[Group] g
+                        INNER JOIN [dbo].[GroupLocation] gl
+                            ON  gl.[GroupId] = g.[Id]
+                        INNER JOIN [dbo].[Location] l
+                            ON  l.[Id] = gl.[LocationId]
+                        INNER JOIN [dbo].[GroupLocationSchedule] gls
+                            ON  gls.[GroupLocationId] = gl.[Id]
+                        INNER JOIN [dbo].[GroupLocationScheduleConfig] glsc
+                            ON  glsc.[GroupLocationId] = gl.[Id]
+                            AND glsc.[ScheduleId] = gls.[ScheduleId]
+                        INNER JOIN [dbo].[Schedule] s
+                            ON  s.[Id] = glsc.[ScheduleId]
+                            AND s.[IsActive] = 'true'
+                        LEFT OUTER JOIN [dbo].[AttendanceOccurrence] ao
+                            ON  ao.[GroupId] = g.[Id]
+                            AND ao.[LocationId] = l.[Id]
+                            AND ao.[ScheduleId] = glsc.[ScheduleId]
+                            AND ao.[OccurrenceDate] = s.[EffectiveStartDate]
+                        LEFT OUTER JOIN [dbo].[Attendance] a
+                            ON  a.[OccurrenceId] = ao.[Id]
+                            AND a.[ScheduledToAttend] = 'true'
+                        WHERE   g.[Id] = @groupid
+                            AND g.[IsActive] = 'true'
+                            AND g.[IsArchived] != 'true'
+                            AND g.[DisableScheduling] != 'true'
+                        GROUP BY gl.[GroupId]
+                                , gl.[Id]
+                                , gl.[LocationId]
+                                , glsc.[ScheduleId]
+                    ),
+
+                    SlotsNeededCTE AS (
+                        SELECT  desiredCTE.GroupId
+                                , desiredCTE.GroupLocationId
+                                ,desiredCTE.LocationId
+                                ,desiredCTE.ScheduleId
+                                ,desiredCTE.SlotCount - filledCTE.SlotCount AS 'SlotCount'
+                        FROM    SlotsDesiredCTE desiredCTE
+                        INNER JOIN  SlotsFilledCTE filledCTE
+                            ON  filledCTE.GroupId = desiredCTE.GroupId
+                            AND filledCTE.GroupLocationId = desiredCTE.GroupLocationId
+                            AND filledCTE.LocationId = desiredCTE.LocationId
+                            AND filledCTE.ScheduleId = desiredCTE.ScheduleId
+                    )
+
+                    SELECT  desiredCTE.[GroupLocationId]
+                            , s.[Id] AS 'ServiceId'
+                            , s.[Guid] AS 'ServiceGuid'
+                            , s.[Name] AS 'ServiceTime'
+                            , s.[EffectiveStartDate] AS 'ServiceDate'
+                            , s.[Order]
+                            , SUM(desiredCTE.SlotCount) AS 'SlotsDesired'
+                            , SUM(filledCTE.SlotCount) AS 'SlotsFilled'
+                            , SUM(neededCTE.SlotCount) AS 'SlotsNeeded'
+                            , CASE
+                                WHEN SUM(neededCTE.SlotCount) > 0 THEN 'true'
+                                ELSE 'false'
+                            END AS 'SlotsAvailable'
+                    FROM    SlotsDesiredCTE desiredCTE
+                    INNER JOIN  SlotsFilledCTE filledCTE
+                        ON  filledCTE.GroupId = desiredCTE.GroupId
+                        AND filledCTE.GroupLocationId = desiredCTE.GroupLocationId
+                        AND filledCTE.LocationId = desiredCTE.LocationId
+                        AND filledCTE.ScheduleId = desiredCTE.ScheduleId
+                    INNER JOIN  SlotsNeededCTE neededCTE
+                        ON  neededCTE.GroupId = desiredCTE.GroupId
+                        AND neededCTE.GroupLocationId = desiredCTE.GroupLocationId
+                        AND neededCTE.LocationId = desiredCTE.LocationId
+                        AND neededCTE.ScheduleId = desiredCTE.ScheduleId
+                    INNER JOIN [dbo].[Group] g
+                        ON  g.[Id] = desiredCTE.GroupId
+                    INNER JOIN [dbo].[Location] l
+                        ON  l.[Id] = desiredCTE.LocationId
+                    INNER JOIN [dbo].[Schedule] s
+                        ON  s.[Id] = desiredCTE.ScheduleId
+                        AND s.[IsActive] = 'true'
+                    GROUP BY desiredCTE.[GroupLocationId]
+                            , s.[Id]
+                            , s.[Guid]
+                            , s.[Name]
+                            , s.[EffectiveStartDate]
+                            , s.[Order]
+                    ORDER BY s.[EffectiveStartDate]
+                            , s.[Order]
+                {% endsql %}
+
+                {% assign maxServiceCount = 0 %}
+
+                {% for groupLocation in groupLocations %}
+
+                    {% assign LocationServices = AllLocationServices | Where:'GroupLocationId',groupLocation.Id %}
+
+                    {% assign serviceCount = LocationServices | Size %}
+
+                    {% if serviceCount > 0 %}
+
+                        {% if serviceCount > maxServiceCount %}
+                            {% assign maxServiceCount = serviceCount %}
+                        {% endif %}
+
+                        {% if needTableHeader %}
+                            {% assign needTableHeader = false %}
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="group-location group-location-header"></th>
+                                    {% for locationService in LocationServices %}
+                                        {% assign serviceDay = locationService.ServiceDate | Date:'d' | NumberToOrdinal %}
+
+                                        <th scope="col" class="group-location-service">
+                                            <span class="service-date">
+                                                {{ locationService.ServiceDate | Date:'MMM' }} {{ serviceDay }}
+                                            </span>
+                                            <br>
+                                            <span class="service-day-time">
+                                                {{ locationService.ServiceDate | Date:'ddd' }}
+                                                {{ locationService.ServiceTime | Split:' ' | Last }}
+                                            </span>
+                                        </th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                        {% endif %}
+
+                        <tr id="location-row-{{ groupLocation.Guid }}">
+                            <th scope="row" class="group-location">
+                                {{ groupLocation.Location.Name | Remove:' - SERVE' }}
+                            </th>
+                            {% for locationService in LocationServices %}
+                                {% if locationService.SlotsDesired > 0 %}
+                                    {% if locationService.SlotsNeeded < 1 %}
+                                        {% assign service-class = "service-filled" %}
+                                        {% if locationService.SlotsNeeded < 0 %}
+                                            {% assign service-class = "service-filled service-overfilled" %}
+                                        {% endif %}
+                                    {% elseif locationService.SlotsFilled == 0 %}
+                                        {% assign service-class = "service-no-volunteers" %}
+                                    {% else %}
+                                        {% assign service-class = "service-open" %}
+                                    {% endif %}
+                                    {%- capture serviceSlots -%}
+                                        <span class="location-service-total-slots">{{ locationService.SlotsDesired }}</span>
+                                        /
+                                        <span class="location-service-filled-slots">{{ locationService.SlotsFilled }}</span>
+                                        /
+                                        <span class="location-service-open-slots">{{ locationService.SlotsNeeded }}</span>
+                                    {%- endcapture -%}
+                                {% else %}
+                                    {% assign service-class = "service-disabled" %}
+                                    {% assign serviceSlots = '--' %}
+                                {% endif %}
+                                <td>
+                                    <div class="location-service-slots-wrapper {{ service-class }}">
+                                        {{ serviceSlots }}
+                                    </div>
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endif %}
+
+                    {% if forloop.last and needTableHeader != true %}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th scope="col" class="group-location">
+                                    <a class="btn btn-primary btn-xs" href="{{ groupAdminPagePath }}/{{ group.Id }}">Edit Total Slots</a>
+                                </th>
+                                {% if maxServiceCount > 0 %}
+                                    <td colspan="{{ maxServiceCount }}" class="legend">total slots / filled slots / open slots</td>
+                                {% endif %}
+                            </tr>
+                        </tfoot>
+                    {% endif %}
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+    {% if volunteerCount > 0 %}
+        <div id="panel-holiday-serve-admin-group-volunteers" class="panel panel-default panel-group-volunteers">
+            <div class="panel-heading">
+                <span class="panel-title">Volunteers</span>
+                <span class="panel-volunteer-count">{{ volunteerCount }}</span>
+            </div>
+            <div class="panel-body">
+                <table class="table table-condensed table-volunteers">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="volunteer-col-header volunteer-name">Name</th>
+                            <th scope="col" class="volunteer-col-header volunteer-status">Status</th>
+                            <th scope="col" class="volunteer-col-header volunteer-date-added">Date Added</th>
+                            {% if showBkgdCheck %}
+                                <th scope="col" class="volunteer-col-header volunteer-bkgd-check">Bkgd Check</th>
+                            {% endif %}
+                            <th scope="col" class="volunteer-col-header volunteer-new">New?</th>
+                            <th scope="col" class="volunteer-col-header volunteer-assistant">Assistant?</th>
+                            <th scope="col" class="volunteer-col-header volunteer-services">Scheduled Service(s)</th>
+                            <th scope="col" class="volunteer-col-header volunteer-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for volunteer in volunteers %}
+                            <tr id="volunteer-row-{{ volunteer.Guid }}" class="volunteer-row"
+                                hx-get="^/holiday-serve-signup/admin-get-group-member?GroupMemberGuid={{ volunteer.Guid }}"
+                                hx-trigger="load, reload-volunteer-{{ volunteer.Guid }} from:body"
+                                hx-target="#volunteer-row-{{ volunteer.Guid }}"
+                                hx-swap="innerHTML"
+                                hx-indicator="#volunteer-loading-{{ volunteer.Guid }}">
+                                <td id="volunteer-loading-{{ volunteer.Guid }}" class="htmx-indicator loading-indicator">
+                                    Loading
+                                    <img src="/Content/HelixResources/svg-spinners/3-dots-fade.svg" alt="Loading">
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                 <div id="volunteer-edit-modal" class="modal modal-blur fade" role="dialog">
+                    <div class="modal-dialog modal-dialog-centered" role="document">
+                        <div class="modal-content">
+                        </div>
+                    </div>
+                </div>
+                <script>
+                    $("#volunteer-edit-modal").on('hidden.bs.modal', function () {
+                        $(this).find('.modal-content').html('');
+                    });
+                </script>
+            </div>
+        </div>
+    {% endif %}
+
+    <script>
+        $( '.group-card' ).removeClass('card-selected');
+        $( '#group-card-{{ group.Guid }}').addClass('card-selected');
+        document.getElementById('panel-holiday-serve-admin-group-details').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    </script>
+
+{% endif %}
+
