@@ -1,0 +1,127 @@
+{%- comment -%}
+    EXAMPLE IMPLEMENTATION — This shortcode is specific to The Crossing's background check setup
+    and is provided as a reference only. It includes logic for transitioning from Safe Ministry
+    Solutions (ProcessorEntityTypeId 2462) to a different provider, and references attribute keys
+    specific to our environment (BackgroundCheckStatus, BackgroundCheckResult, BackgroundCheckDate,
+    SafeMinistryStatus). You will need to replace this with your own implementation based on your
+    background check provider and Rock attribute configuration.
+{%- endcomment -%}
+{%- assign personId = personid | Default:'-1' | AsInteger -%}
+{%- if personId == '-1'  -%}
+    ERROR: Person Id is a required parameter!
+{%- else -%}
+    {% assign Person = personId | PersonById %}
+
+    {%- assign expireDate = 'Now' | Date | DateAdd:-2,'y' | Date:'yyyyMMdd' -%}
+    {%- assign bkgdCheckStatus = Person | Attribute:'BackgroundCheckStatus' | Default:'' -%}
+    {%- assign bkgdCheckResult = Person | Attribute:'BackgroundCheckResult' | Default:'' -%}
+    {%- assign bkgdCheckDate = Person | Attribute:'BackgroundCheckDate' | Default:'' -%}
+    {%- assign bkgdCheckDateCompare = Person | Attribute:'BackgroundCheckDate','RawValue' | Date:'yyyyMMdd' | Default:'' -%}
+
+    {%- assign hasBkgdCheck = false -%}
+    {%- assign bkgdCheckExpired = false -%}
+    {%- assign iconClass = 'ti ti-shield-check-filled' -%}
+    {%- assign iconOpacity = '1.0'%}
+    {%- assign iconColor = '#d6d6d6'%}
+
+    {%- if bkgdCheckStatus == 'Pending' or bkgdCheckResult == 'Pending' -%}
+        {%- assign iconColor = '#FFD700' -%}
+
+        {%- backgroundcheck expression:'PersonAlias.PersonId == {{ Person.Id }}' limit:'1' sort:'RequestDate desc' securityenabled:'false' -%}
+            {%- if backgroundcheck != null and backgroundcheck != empty -%}
+                {%- assign hasBkgdCheck = true -%}
+                {%- if backgroundcheck.ProcessorEntityTypeId == 2462 -%}
+                    {%- assign statusString = backgroundcheck | Attribute:'SafeMinistryStatus' | Default:'Status Unknown' -%}
+                    {%- capture statusDescription -%}
+                        Pending Background Check requested on {{ backgroundcheck.RequestDate | Date:'MMM d, yyyy' }} - Status: {{ statusString }}
+                        {%- if bkgdCheckDate != '' -%} <br>------<br> Last Background Check completed: {{ bkgdCheckDate }}.{%- endif -%}
+                    {%- endcapture -%}
+                    {%- assign outputStatus = "Pending" -%}
+                {%- else -%}
+                    {%- assign statusString = backgroundcheck.Status -%}
+                    {%- if statusString == 'InvitationExpired' or statusString == 'ReportSuspended' -%}
+                        {%- assign bkgdCheckExpired = true -%}
+                        {%- capture statusDescription -%}
+                            Background Check requested on {{ backgroundcheck.RequestDate | Date:'MMM d, yyyy' }} has EXPIRED: {{ statusString }}
+                            {%- if bkgdCheckDate != '' -%} <br>------<br> Last Background Check completed: {{ bkgdCheckDate }}.{%- endif -%}
+                        {%- endcapture -%}
+                        {%- assign outputStatus = "Expired" -%}
+                    {%- else -%}
+                        {%- capture statusDescription -%}
+                            Pending Background Check requested on {{ backgroundcheck.RequestDate | Date:'MMM d, yyyy' }} - Status: {{ statusString }}
+                            {%- if bkgdCheckDate != '' -%} <br>------<br> Last Background Check completed: {{ bkgdCheckDate }}.{%- endif -%}
+                        {%- endcapture -%}
+                        {%- assign outputStatus = "Pending" -%}
+                    {%- endif -%}
+                {%- endif -%}
+            {%- else -%}
+                {%- capture statusDescription -%}
+                    'No Background Check for {{ Person.NickName }}.'
+                {%- endcapture -%}
+                {%- assign outputStatus = "None" -%}
+            {%- endif -%}
+        {%- endbackgroundcheck -%}
+
+    {%- elseif bkgdCheckStatus == 'Expired' -%}
+        {%- assign iconColor = '#FFD700' -%}
+
+        {%- backgroundcheck expression:'PersonAlias.PersonId == {{ Person.Id }}' limit:'1' sort:'RequestDate desc' securityenabled:'false' -%}
+            {%- if backgroundcheck != null and backgroundcheck != empty -%}
+                {%- assign hasBkgdCheck = true -%}
+                {%- assign statusString = backgroundcheck | Attribute:'SafeMinistryStatus' | Default:'Status Unknown' -%}
+                {%- capture statusDescription -%}
+                    Background Check requested on {{ backgroundcheck.RequestDate | Date:'MMM d, yyyy' }} has EXPIRED - Status: {{ statusString }}
+                    {%- if bkgdCheckDate != '' -%} <br>------<br> Last Background Check completed: {{ bkgdCheckDate }}.{%- endif -%}
+                {%- endcapture -%}
+                {%- assign outputStatus = "Expired" -%}
+            {%- else -%}
+                {%- capture statusDescription -%}
+                    'No Background Check for {{ Person.NickName }}.'
+                {%- endcapture -%}
+                {%- assign outputStatus = "None" -%}
+            {%- endif -%}
+        {%- endbackgroundcheck -%}
+
+    {%- elseif bkgdCheckResult == 'Pass' -%}
+        {%- assign iconColor = '#43be81' -%}
+        {%- assign hasBkgdCheck = true -%}
+        {%- if bkgdCheckDateCompare != '' and bkgdCheckDateCompare < expireDate -%}
+            {%- assign bkgdCheckExpired = true -%}
+            {%- capture statusDescription -%}
+                {{ Person.NickName }} was background-checked on {{ bkgdCheckDate }}. Result: PASS.<br>------<br>NOTE: This is more than 2 years old and should be renewed.
+            {%- endcapture -%}
+            {%- assign outputStatus = "Pass-Expired" -%}
+        {%- else -%}
+            {%- capture statusDescription -%}
+                {{ Person.NickName }} was background-checked on {{ bkgdCheckDate }}. Result: PASS
+            {%- endcapture -%}
+            {%- assign outputStatus = "Pass" -%}
+        {%- endif -%}
+
+    {%- elseif bkgdCheckResult == 'Fail' -%}
+        {%- assign iconColor = '#b00000' -%}
+        {%- assign hasBkgdCheck = true -%}
+        {%- capture statusDescription -%}
+            {{ Person.NickName }} was background-checked on {{ bkgdCheckDate }}. Result: FAIL
+        {%- endcapture -%}
+        {%- assign outputStatus = "Fail" -%}
+    {%- else -%}
+        {%- capture statusDescription -%}
+            'No Background Check for {{ Person.NickName }}.'
+        {%- endcapture -%}
+        {%- assign outputStatus = "None" -%}
+    {%- endif -%}
+
+    {%- if bkgdCheckExpired or hasBkgdCheck != true -%}
+        {%- assign iconClass = 'ti ti-shield-filled' -%}
+        {%- assign iconOpacity = '0.4' -%}
+    {%- endif -%}
+
+    {
+        "IconClass" : {{ iconClass | ToJSON }},
+        "IconColor" : {{ iconColor | ToJSON }},
+        "IconOpacity" : {{ iconOpacity | ToJSON }},
+        "Status" : {{ outputStatus | ToJSON }},
+        "StatusDescription" : {{ statusDescription | ToJSON }}
+    }
+{%- endif -%}

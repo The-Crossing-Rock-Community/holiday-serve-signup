@@ -1,0 +1,23 @@
+<div class="alert alert-warning"><strong>Example implementation — Crossing-specific.</strong> This shortcode is specific to The Crossing's background check provider history and is provided as a reference only. It includes logic for transitioning from Safe Ministry Solutions to a different provider, and references attribute keys specific to our environment. You will need to replace this with your own implementation based on your background check provider and Rock attribute configuration.</div>
+
+<pre>{[ bkgdcheckstatus personid:'' ]}</pre>
+<h4 class="mb-0"><u>Parameters</u></h4>
+<dl class="dl-horizontal">
+    <dt>Person Id</dt>
+    <dd>REQUIRED: The person for which to get the background check status</dd>
+</dl>
+<h4 class="mb-0"><u>Output</u></h4>
+<p>The output is a JSON similar to the following:</p>
+<pre>    {
+        "IconClass" : ["ti ti-shield-check", "ti ti-shield-check-filled"],
+        "IconColor" : [based on status],
+        "IconOpacity" : []"1.0", "0.4"],
+        "Status" : ["None", "Pending", "Expired", "Pass", "Pass-Expired", "Fail"],
+        "StatusDescription" : [description for tooltip]
+    }
+</pre>
+<h4 class="mb-0"><u>Example Usage</u></h4>
+<pre>    {% capture bkgdCheckJSON %}{[ bkgdcheckstatus personid:'999' ]}{% endcapture %}
+    {% assign bkgdCheck = bkgdCheckJSON | FromJSON %}
+    [ then access the various properties as desired ]
+</pre>

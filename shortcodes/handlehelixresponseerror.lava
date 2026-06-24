@@ -1,0 +1,29 @@
+<script>
+    document.addEventListener('htmx:responseError', (event) => {
+        let responseStatus = event.detail.xhr.status;
+        let endpointPath = event.detail.requestConfig.path;
+        let responseMessage = ''
+
+        {% if output == null or output == empty %}
+            let target = event.detail.requestConfig.target;
+        {% else %}
+            let target = document.querySelector('{{ output }}');
+        {% endif %}
+
+        switch (responseStatus) {
+            case 401:
+                responseMessage = 'ERROR: You are NOT authorized to access the endpoint: ' + endpointPath;
+                break;
+            case 404:
+                responseMessage = 'ERROR: Endpoint NOT found: ' + endpointPath;
+                break;
+            default:
+                responseMessage = 'Unexpected response status (' + responseStatus + ') from endpoint: ' + endpointPath;
+        }
+
+        let fullMessage = '<div class="alert alert-danger text-center">' + responseMessage + '</div>'
+
+        htmx.swap(target, fullMessage, { swapStyle: "innerHTML" });
+        setTimeout(() => {htmx.swap(target, '', { swapStyle: "innerHTML" });}, 3000);
+    });
+</script>

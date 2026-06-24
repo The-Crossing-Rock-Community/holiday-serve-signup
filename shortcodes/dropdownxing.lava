@@ -1,0 +1,49 @@
+{% assign isRequired = isrequired | AsBoolean %}
+
+{% capture id %}rc-{{ '' | UniqueIdentifier }}{% endcapture %}
+
+{[ rockcontrol id:'{{ id }}' label:'{{ label }}' showlabel:'{{ showlabel }}' controltype:'{{ controltype }}' isrequired:'{{ isRequired }}' validationmessage:'{{ validationmessage }}' ]}
+    <select name="{{ name }}" id="{{ id }}" class="form-control {% if longlistenabled == 'true' %}chosen-select chosen-select-absolute {% endif %}" {% if isRequired %}required{% endif %} {{ additionalattributes }}>
+
+		{% for item in items %}
+			<option value="{{ item.value }}" {% if item.value == value %}selected="selected"{% endif %}>{{ item.text }}</option>
+		{% endfor %}
+
+	</select>
+{[ endrockcontrol ]}
+
+{% if longlistenabled == 'true'%}
+    <script>
+    (function() {
+        var $chosenDropDowns = $('#{{ id }}');
+        if ($chosenDropDowns.length) {
+            if (document.activeElement && !document.activeElement.nodeType) {
+                $('body').trigger('focus');
+            }
+
+            $chosenDropDowns.chosen({
+                width: '100%',
+                allow_single_deselect: true,
+                placeholder_text_multiple: ' ',
+                placeholder_text_single: ' '
+            });
+
+            $chosenDropDowns.on('chosen:showing_dropdown chosen:hiding_dropdown', function (evt, params) {
+                // update the outer modal
+                Rock.dialogs.updateModalScrollBar(this);
+            });
+
+            var $chosenDropDownsAbsolute = $chosenDropDowns.filter('.chosen-select-absolute');
+            if ($chosenDropDownsAbsolute.length) {
+                $chosenDropDownsAbsolute.on('chosen:showing_dropdown', function (evt, params) {
+                    $(this).next('.chosen-container').find('.chosen-drop').css('position', 'relative');
+                });
+                $chosenDropDownsAbsolute.on('chosen:hiding_dropdown', function (evt, params) {
+                    $(this).next('.chosen-container').find('.chosen-drop').css('position', 'absolute');
+                });
+            }
+        }
+    })();
+    </script>
+{% endif %}
+

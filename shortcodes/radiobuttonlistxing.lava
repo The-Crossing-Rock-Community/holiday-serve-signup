@@ -1,0 +1,21 @@
+{% assign isRequired = isrequired | AsBoolean %}
+{% if columns == '0' %}
+    {% assign inColumns = false %}
+{% else %}
+    {% assign inColumns = true %}
+{% endif %}
+
+{[ rockcontrol id:'rc-{{ '' | UniqueIdentifier }}' label:'{{ label }}' showlabel:'{{ showlabel }}' controltype:'{{ type }}' isrequired:'{{ isRequired }}' validationmessage:'{{ validationmessage }}' ]}
+
+    <div id="{{ id }}" class="controls js-rockradiobuttonlist rockradiobuttonlist  rockradiobuttonlist-horizontal {% if inColumns %}in-columns in-columns-{{ columns }}{% endif %}  {% if isRequired %}required{% endif %}">
+        {% for item in items %}
+
+            {% assign itemId = id | Append:'_' | Append:forloop.index0 %}
+            {% assign isValueSelected = sc-values | Contains:item.value %}
+            <label class="radio-inline" for="{{ itemId }}">
+                <input id="{{ itemId }}" type="radio" name="{{ name }}" value="{{ item.value }}" {% if value == item.value %}checked="checked"{% endif %} {{ additionalattributes }}>
+                <span class="label-text">{{ item.text }}</span></label>
+        {% endfor %}
+    </div>
+
+{[ endrockcontrol ]}

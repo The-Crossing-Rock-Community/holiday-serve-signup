@@ -1,0 +1,24 @@
+{% assign isRequired = isrequired | AsBoolean %}
+
+{% assign sc-values =  value | Split:',',true %}
+
+{[ rockcontrol id:'rc-{{ '' | UniqueIdentifier }}' label:'{{ label }}' showlabel:'{{ showlabel }}' controltype:'{{ controltype }}' isrequired:'{{ isRequired }}' validationmessage:'{{ validationmessage }}' ]}
+
+    <div class="controls js-rockcheckboxlist rock-check-box-list rockcheckboxlist rockcheckboxlist-horizontal in-columns in-columns-{{ columns }} cbl-{{ name }} {% if isRequired %}required{% endif %}">
+        {% for item in items %}
+
+            {% assign itemActive = item.active | Default:'true' | AsBoolean %}
+            {% assign itemId = id | Append:'_' | Append:forloop.index0 %}
+			{% assign isValueSelected = sc-values | Contains:item.value %}
+            <label class="checkbox-inline {% if itemActive != true %}disabled{% endif %}" for="{{ itemId }}">
+			    <input id="{{ itemId }}" type="checkbox" name="{{ name }}" data-name="{{ item.text }}" value="{{ item.value }}" {% if itemActive != true %}disabled class="disabled"{% endif %} {% if isValueSelected %}checked{% endif %} {{ additionalattributes }}>
+				<span class="label-text">{{ item.text }}</span>
+                {% if item.addltext != null and item.addltext != '' %}
+                    <span class="label-addl-text">{{ item.addltext }}</span>
+                {% endif %}
+			</label>
+
+        {% endfor %}
+    </div>
+
+{[ endrockcontrol ]}

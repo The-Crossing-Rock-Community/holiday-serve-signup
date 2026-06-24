@@ -1,0 +1,22 @@
+<p>This control displays a checkbox list.</p>
+<h5>Example Usage</h5>
+<pre>{[ checkboxlist label:'Favorite Colors' name:'favorite-colors' isrequired:'true' value:'2' columns:'4' ]}
+    [[ item value:'1' text:'Red' addltext:'Red is my favorite color.' active:'true' ]][[ enditem]]
+    [[ item value:'2' text:'Green' ]][[ enditem]]
+    [[ item value:'3' text:'Blue' ]][[ enditem]]
+    [[ item value:'4' text:'Orange' ]][[ enditem]]
+    [[ item value:'5' text:'Yellow' ]][[ enditem]]
+{[ endcheckboxlist ]}</pre>
+<h5>Parameters</h5>
+<p>Below are the parameters for the checkbox list shortcode.</p>
+<ul>
+<li><strong>label</strong> - The label to display above the control.</li>
+<li><strong>showlabel </strong>(true) - Whether to display label.</li>
+<li><strong>name </strong>(checkbox) - The name for the Checkbox list picker control.</li>
+<li><strong>value</strong> - The currently selected values.</li>
+<li><strong>controltype</strong> (rock-check-box-list) - The type of control. This is appended to the root form-group.</li>
+<li><strong>columns</strong> - The number of colums to align the checkboxes to.</li>
+<li><strong>isrequired </strong>(false) - Establishes whether making a selection is necessary.</li>
+<li><strong>validationmessage </strong>(Please select a value.) - Message to display when the value is not valid.</li>
+<li><strong>additionalattributes</strong> - Additional attributes that you want to add to the input controls (not each checkbox control will get these attributes).</li>
+</ul>

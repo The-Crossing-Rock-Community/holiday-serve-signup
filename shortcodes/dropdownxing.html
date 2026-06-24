@@ -1,0 +1,27 @@
+
+<p>This control displays a dropdown list with the option to enable support for longer lists.</p>
+
+<h5>Example Usage</h5>
+<pre>{[ dropdown label:'Favorite Number' name:'favorite-number' longlistenabled:'true' isrequired:'true' value:'2' ]}
+    [[ item value:'1' text:'One' ]][[ enditem]]
+    [[ item value:'2' text:'Two' ]][[ enditem]]
+    [[ item value:'3' text:'Three' ]][[ enditem]]
+{[ enddropdown ]}</pre>
+
+
+<h5>Parameters</h5>
+<p>Below are the parameters for the dropdown shortcode.</p>
+<ul>
+    <li><strong>label</strong> - The label to display above the control.</li><li><b>showlabel </b>(true) - Whether to display label.</li>
+    <li><strong>name</strong> (dropdown) - The name for the drop down control.</li>
+    <li><strong>value</strong> - The ID or Guid of the currently selected value.</li>
+    <li><strong>longlistenabled</strong> (false) -  Enhances the functionality to include a search feature, facilitating swift and efficient selection of the preferred item from the list.</li>
+    <li><strong>controltype</strong> (rock-drop-down-list) -  The type of control. This is appended to the root form-group.</li><li><b>isrequired </b>(false) - Establishes whether making a selection is necessary.
+</li><li><b>validationmessage </b>(Please select an item.) - Message to display when the value is not valid.</li>
+    <li><strong>additionalattributes</strong> -  Additional attributes to include on the input control.</li>
+</ul>
+
+<p>
+    The above settings enable a wide range of filtering options for the list. Regardless of the filter configurations, the
+    current value will consistently be shown.
+</p>
