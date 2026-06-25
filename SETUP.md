@@ -375,7 +375,7 @@ Group Member attributes are easy to extend. Add a new boolean attribute to your 
 
 ## Questions?
 
-Drop a comment on the [Rock Community post](https://community.rockrms.com/recipes) or open an issue in this repo. If you build something from this, we'd love to hear how you adapted it.
+Drop a comment on the [Rock Community post](https://community.rockrms.com/recipes), open an issue in this repo, or find us on RocketChat — we're **@stan.yoder** and **@karenrossi**. If you build something from this, we'd love to hear how you adapted it.
 
 *— Stan & Karen, The Crossing*
 
