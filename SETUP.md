@@ -295,7 +295,7 @@ You'll need three pages. Each page requires a **Lava Application Content** block
     });
 </script>
 ```
-- Security: open to all (unauthenticated users can view the page; the family member dropdown is hidden when no one is logged in)
+- Security: open to all (unauthenticated users can view the page; the family member dropdown is hidden when user is not logged in)
 
 ![Public signup page block setup](screenshots/screenshot-pagesetup-signup.png)
 
