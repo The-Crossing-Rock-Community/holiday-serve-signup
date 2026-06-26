@@ -150,11 +150,13 @@ The group attributes filled in for a configured group will look something like t
 
 ### Step 4: Create the Signup Workflow
 
-When a volunteer clicks "Sign Me Up," they are redirected to a workflow entry page at a URL like:
+When a volunteer clicks "Sign Me Up," they are redirected to a workflow entry page. The signup button constructs a URL using the active campaign's route — e.g.:
 
 ```
 /servechristmas/signup?Person={personAliasGuid}&Group={groupGuid}&Location={locationGuid}&Schedules={scheduleGuids}
 ```
+
+We set up three routes pointing to the same workflow entry page: `/servechristmas/signup`, `/serveeaster/signup`, and `/holidayserve/signup` (a generic year-round route). The active route is determined by the holiday switch logic in `lava-application/content-blocks/HolidaySignup.lava`.
 
 This workflow receives those parameters and handles adding the person to the appropriate Attendance Occurrences with `ScheduledToAttend = true`. It also sends a confirmation email to the volunteer and a notification to the appropriate ministry team contact.
 
@@ -175,6 +177,15 @@ In Rock, go to CMS > Lava Applications and create a new application:
 - **Status:** Active
 
 Leave Configuration Rigging empty for now — you'll come back to it after you have all your IDs.
+
+**Security setup:** The Helix app uses three security modes — Application View (public signup), Application Edit (staff admin), and Endpoint Execute (write endpoints). To configure access:
+
+1. In Rock, navigate to your Helix application and click the security icon
+2. Grant **Application View** to All Users (or leave it open — this controls the public signup page)
+3. Grant **Application Edit** to a security role containing your ministry team staff
+4. **Endpoint Execute** is used only by the two write endpoints (`admin-edit-group-member`, `admin-save-group-member`) — these are called internally by HTMX from within the admin page, so they inherit the logged-in user's context
+
+Staff with Application Edit access will see the full admin UI. Staff without it will only see the public signup page.
 
 ### Step 6: Create the Lava Endpoints
 
@@ -236,24 +247,43 @@ In your Helix application, open Configuration Rigging and enter the following JS
 }
 ```
 
+**Key reference:**
+
+| Key | What it is | Where to find it |
+|---|---|---|
+| `HolidayServingGroupTypeId` | Id of your Holiday Serving Group Type | Admin Tools > General Settings > Group Types |
+| `RockAdminSecurityGroupId` | Id of your Rock Administrator security role | Admin Tools > Security > Security Roles |
+| `SignUpWorkflowTypeId` | Id of the signup workflow | Admin Tools > General Settings > Workflow Configuration |
+| `HolidayServeMinistryTeamDefinedTypeId` | Id of the Ministry Team Defined Type you created in Step 1 | Admin Tools > General Settings > Defined Types |
+| `MinistryTeamKidsDefinedValueId` | Id of the Kids ministry Defined Value | Admin Tools > General Settings > Defined Types > [your type] |
+| `MinistryTeamGuestExperiencesDefinedValueId` | Id of the Guest Experiences ministry Defined Value | Same as above |
+| `BackgroundCheckWorkflowTypeId` | Id of your background check workflow (same one on Person Profile actions) | Admin Tools > General Settings > Workflow Configuration |
+| `BackgroundCheckBadgeId` | Id of the Person badge that displays background check status | Admin Tools > CMS > Person Profile Badges |
+| `GroupMemberNoteTypeId` | Id of the Group Member note type — find the one marked System | Admin Tools > General Settings > Note Types, filter by Entity Type "Group Member" |
+| `CampusStatusValueIdOpen` | Defined Value Id for "Open" campus status | Admin Tools > General Settings > Defined Types > Campus Status |
+| `CampusTypeValueIdPhysical` | Defined Value Id for "Physical" campus type | Admin Tools > General Settings > Defined Types > Campus Type |
+| `LocationTypeCampusValueId` | Defined Value Id for "Campus" location type | Admin Tools > General Settings > Defined Types > Location Type |
+| `GroupAdminPagePath` | Route to your Group Detail admin page, with `{0}` placeholder for the group Id | e.g., `/rock/group/{0}` |
+| `AttributeIds.*` | Attribute Ids for the four Group attributes you created in Step 2 | Admin Tools > General Settings > Attributes, filter by Entity Type "Group" |
+
 > **Tip:** You can find Attribute IDs in Rock under Admin Tools > General Settings > Attributes, filtering by Entity Type "Group."
 
 ### Step 8: Deploy the Print Stylesheet
 
-Copy `HolidayServeStatusBoardPrint.css` from the repo into your Rock theme folder. The status board's print function references it at:
+Copy `styles/HolidayServeStatusBoardPrint.css` from the repo into your Rock theme folder. The status board's print function references it at:
 
 ```
 /Themes/[YourTheme]/XingAssets/HolidayServe/HolidayServeStatusBoardPrint.css
 ```
 
-Update the path in `scripts/holidayservestatusboard-scripts.lava` to match your theme name and preferred folder structure.
+`XingAssets` is a folder convention we use at The Crossing — your theme won't have this folder by default. Create the folder structure `XingAssets/HolidayServe/` inside your theme folder, or put the file wherever you prefer and update the path in `scripts/holidayservestatusboard-scripts.lava` to match.
 
 ### Step 9: Set Up the Pages
 
 You'll need three pages. Each page requires a **Lava Application Content** block (pointing to your Helix app) plus one or two **HTML Content** blocks for page-specific styles and scripts.
 
 **Page 1: Public Signup**
-- Route: `/servechristmas` and/or `/serveeaster` (the block detects the URL path to set the holiday context)
+- Route: set up all three routes pointing to this page — `/servechristmas`, `/serveeaster`, and `/holidayserve` (generic year-round route). The block detects the URL path to set the holiday context.
 - Lava Application Content block: paste from `lava-application/content-blocks/HolidaySignup.lava`
 - HTML Content block (styles): paste from `styles/holidayserve-styles.lava`
 - HTML Content block (intro): paste from `holidayserve-introparagraph.lava` — **this is example content with Crossing-specific copy.** Replace the intro text, event dates, and ministry name references with your own.
@@ -405,6 +435,36 @@ The SlotsDesired / SlotsFilled / SlotsNeeded CTE pattern appears in several endp
 ### Support more than two service types (New Volunteer / Assistant)
 
 Group Member attributes are easy to extend. Add a new boolean attribute to your Group Type, add it to the edit form in `admin-edit-group-member.lava`, save it in `admin-save-group-member.lava`, and display it in `admin-get-group-member.lava` and `get-status-location-schedule.lava`.
+
+---
+
+## Testing Your Setup
+
+After completing the steps above, run through this smoke test before opening signup to volunteers:
+
+1. Load the public signup page (`/servechristmas` or `/serveeaster`) — confirm the campus selector appears
+2. Select a campus — confirm role cards load with slot counts
+3. Click a role card — confirm location selection (or auto-advance to services if only one location)
+4. Select a service time — confirm the signup button appears
+5. Click "Sign Me Up" — confirm you're redirected to the workflow entry page with the correct role and service times pre-filled
+6. Complete the workflow — confirm a confirmation email is sent and an Attendance record appears in Rock with `ScheduledToAttend = true`
+7. Load the staff admin page — confirm your test signup appears in the volunteer table
+8. Open the status board — confirm your test signup appears in the correct cell
+
+If any step fails, the most common causes are: incorrect Configuration Rigging IDs, missing shortcodes, or a route mismatch between the signup button and the workflow entry page.
+
+---
+
+## Year-Over-Year
+
+When a campaign ends:
+
+1. **Restrict the public pages** — change security on the public signup page(s) to staff-only until the next campaign
+2. **Remove group members** — clear all members from your serving groups. Rock's Group Scheduler has bulk tools for this, or you can do it via a data view + workflow.
+3. **Keep the groups** — reuse existing groups for the next campaign. Add new groups for new roles or campuses as needed; inactivate groups for roles you're retiring.
+4. **Update schedules** — inactivate last campaign's schedules and create new single-occurrence schedules for the upcoming event. Reuse the same Schedule Category.
+5. **Update slot capacities** — review and adjust `DesiredCapacity` on each Group Location Schedule Config for the new service times.
+6. **Re-open the public pages** — restore security when you're ready to launch signup.
 
 ---
 

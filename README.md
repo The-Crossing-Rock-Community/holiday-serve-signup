@@ -28,6 +28,8 @@ The app has three parts:
 
 Everything is driven by standard Rock features: Group Scheduling for slot capacity, Attendance Occurrences for tracking signups, and Group Member attributes for a few extra fields.
 
+This is an intermediate-to-advanced build — you'll need comfort with Helix/Lava Applications, SQL in Lava, and Rock's data model. If you've built custom Helix apps before, you'll be at home. If you're new to Helix, we'd recommend working through the [Helix documentation](https://community.rockrms.com/developer/helix) first.
+
 One feature we're particularly proud of: ministry teams can share a single signup URL with their entire team — existing volunteers and new folks alike. Roles that require experience are restricted to members of a specific group, so those cards only appear for eligible volunteers. New volunteers see the open roles. One link, one set of instructions, no confusion.
 
 ---
@@ -48,6 +50,7 @@ One feature we're particularly proud of: ministry teams can share a single signu
 
 ![Status board results table showing volunteer names grouped by role across service times](screenshots/screenshot-statusboard.png)
 
+**Workflow signup** — after clicking "Sign Me Up," volunteers land on a workflow entry page to confirm their details. This is a standard Rock Workflow Entry block styled to match the signup experience.
 
 ---
 
@@ -83,13 +86,16 @@ SETUP.md                             — Full setup guide
 
 Full setup instructions, data model explanation, configuration guide, and technical walkthrough are in **[SETUP.md](SETUP.md)**.
 
-The short version:
-1. Create your Ministry Team Defined Type and Group Type
-2. Create your serving groups with locations and schedules
-3. Set up the signup workflow (import from `holiday-serve-signup-workflow.json`)
-4. Create the Helix application and add endpoints
-5. Configure the Configuration Rigging JSON
-6. Set up three Rock pages with the Lava Application Content blocks and HTML Content blocks for styles/scripts
+The short version (nine steps in full):
+1. Create your Ministry Team Defined Type
+2. Create your Group Type with scheduling enabled and required attributes
+3. Create your serving groups with locations and schedules
+4. Set up the signup workflow (import from `holiday-serve-signup-workflow.json`)
+5. Create the Helix application
+6. Create the 12 Lava endpoints
+7. Configure the Configuration Rigging JSON
+8. Deploy the print stylesheet
+9. Set up four Rock pages (public signup, staff admin, status board, workflow entry)
 
 ---
 
@@ -110,4 +116,4 @@ MIT — use, adapt, and share freely. If you build something from this, we'd lov
 
 ## Questions?
 
-Drop a comment on the [Rock Community post](https://community.rockrms.com/recipes), open an issue in this repo, or find us on RocketChat — we're **@stan.yoder** and **@karenrossi**.
+Open an issue in this repo, or find us on RocketChat — we're **@stan.yoder** and **@karenrossi**. A Rock Community post with additional discussion is coming soon.
