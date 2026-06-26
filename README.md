@@ -28,6 +28,8 @@ The app has three parts:
 
 Everything is driven by standard Rock features: Group Scheduling for slot capacity, Attendance Occurrences for tracking signups, and Group Member attributes for a few extra fields.
 
+One feature we're particularly proud of: ministry teams can share a single signup URL with their entire team — existing volunteers and new folks alike. Roles that require experience are restricted to members of a specific group, so those cards only appear for eligible volunteers. New volunteers see the open roles. One link, one set of instructions, no confusion.
+
 ---
 
 ## What It Looks Like
@@ -52,20 +54,15 @@ Everything is driven by standard Rock features: Group Scheduling for slot capaci
 ## What's in This Repo
 
 ```
-/endpoints/                          — 12 Helix endpoint files
-/lava-application-blocks/            — 3 Lava Application Content block files
+/lava-application/endpoints/         — 12 Helix endpoint files
+/lava-application/content-blocks/    — 3 Lava Application Content block files
+/lava-application/                   — Configuration Rigging JSON template (application-rigging.lava)
+/styles/                             — CSS blocks for each page + print stylesheet
+/scripts/                            — JS blocks for the admin and status board pages
 /shortcodes/                         — Custom shortcodes used by the app
 /screenshots/                        — Screenshots and GIFs used in this README
-application-rigging.lava             — Configuration Rigging JSON template
-holidayserve-styles.lava             — CSS block for the public signup page
-holidayserveadmin-styles.lava        — CSS block for the admin page
-holidayserveadmin-scripts.lava       — JS block for the admin page
-holidayservestatusboard-styles.lava  — CSS block for the status board page
-holidayservestatusboard-scripts.lava — JS block for the status board page
-holidayservewf-styles.lava           — CSS + page title block for the workflow entry page
 holidayserve-introparagraph.lava     — Example intro/login block for the public page (customize before use)
 holiday-serve-signup-workflow.json   — Rock workflow export (import via Admin Tools > Power Tools)
-HolidayServeStatusBoardPrint.css     — Print stylesheet (deploy to your Rock theme folder)
 SETUP.md                             — Full setup guide
 ```
 
@@ -98,7 +95,7 @@ The short version:
 
 ## Customization
 
-- **Brand color** — change `--secondary-color-lifeblood: #a1302b` in all four style files to match your brand
+- **Brand color** — change `--secondary-color-lifeblood: #a1302b` in all four files in the `styles/` folder to match your brand
 - **Holiday campaigns** — rename URL paths and update the holiday switch logic in `lava-application-blocks/HolidaySignup.lava` to support your campaigns
 - **Ministry teams** — add or remove Defined Values in your Ministry Team Defined Type; the app pulls from this list dynamically
 - **Background check column** — remove or replace the `bkgdcheckstatus` shortcode references if your ministry doesn't need this

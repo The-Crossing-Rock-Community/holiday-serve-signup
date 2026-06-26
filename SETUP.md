@@ -49,7 +49,9 @@ Each Group Location is linked to one or more Schedules via Group Location Schedu
 
 > **Single-occurrence schedules only.** The code never reads a schedule's `iCalendarContent`, so it has no way to expand recurring schedule patterns. Each service time must be its own single-occurrence schedule (e.g., "Christmas Eve 3pm" as a standalone entry). Recurring schedules will appear but their occurrences will not be correctly handled.
 
-> **Tip:** Create a dedicated Schedule Category for your holiday campaign schedules (e.g., "Holiday Serve") and keep them separate from your regular weekend schedules. It makes them much easier to find, manage, and clean up after the campaign is over.
+> **Tip:** Create a dedicated Schedule Category for your holiday campaign schedules (e.g., "Service Times - Holiday") and keep them separate from your regular weekend schedules. It makes them much easier to find, manage, and clean up after the campaign is over.
+
+![Example single-occurrence schedule showing date, time, and Holiday category](screenshots/screenshot-schedule-detail.png)
 
 ### Desired Capacity = How Many Slots
 
@@ -70,6 +72,14 @@ When a volunteer signs up, the signup workflow creates an `Attendance` record wi
 Create a Defined Type to represent your ministry teams (e.g., KidsCrossing, Guest Experiences, Production, etc.). Add a Defined Value for each ministry that will have serving roles in your campaign.
 
 ![Ministry Team Defined Type setup](screenshots/screenshot-setup-defined-type.png)
+
+**Campus Ministry Team Contact attribute**
+
+The signup workflow uses this attribute to look up who to notify when someone signs up for a role. Add a **Group Role** attribute to this Defined Type with the key `CampusMinistryTeamContact`, scoped to the **Campus Team** group type. Then set the value on each Defined Value to the Campus Team role responsible for that ministry at each campus.
+
+This relies on Rock's built-in Campus Team feature — see the [Rock documentation](https://community.rockrms.com/documentation) for how to set up Campus Teams and add members. The one additional step is adding a role to the Campus Team group type for each ministry you want to support (e.g., "KidsCrossing Contact," "Guest Experiences Lead").
+
+> **Alternative:** If your church doesn't use Campus Teams, you can replace the `CampusMinistryTeamContact` Group Role attribute with a simpler **Person** or **Group** attribute on the Defined Value, then update the workflow to read from that attribute instead. The `scheduling@yourchurch.com` placeholder in the workflow serves as a fallback if no contact is found.
 
 You'll need the **Id** of this Defined Type and the **Id** of each Defined Value for your Configuration Rigging.
 
@@ -98,10 +108,12 @@ Under the **Scheduling** section, enable Group Scheduling:
 |---|---|---|---|
 | `PublicLabel` | Public Label | Text | The name shown to volunteers on the signup page |
 | `Icon` | Icon CSS Class | Text | Tabler icon class (e.g., `ti ti-hands`) |
-| `SignUpAccessGroup` | Sign Up Access Group | Group | Optional — restricts signup to members of a specific group |
+| `SignUpAccessGroup` | Sign Up Access Group | Group | Optional — restricts signup to members of a specific group (see note below) |
 | `HolidayServeMinistryTeam` | Holiday Serve Ministry Team | Defined Value | Use the Defined Type you created in Step 1 |
 
 ![Group Type group attributes](screenshots/screenshot-grouptype-group-attributes.png)
+
+> **Why Sign Up Access Group?** This was one of the key reasons we built this solution. Ministry teams can share a single signup URL with their entire team — both existing volunteers and new folks — without needing to manage separate pages or instructions. Roles that require experience (e.g., a team lead position) are set up with a Sign Up Access Group pointing to an existing volunteer group. Those role cards only appear for members of that group. New volunteers see the open roles; experienced volunteers see everything they're eligible for. One link, one set of instructions, no confusion.
 
 **Group Member Attributes** (add these to the Group Type):
 
@@ -234,7 +246,7 @@ Copy `HolidayServeStatusBoardPrint.css` from the repo into your Rock theme folde
 /Themes/[YourTheme]/XingAssets/HolidayServe/HolidayServeStatusBoardPrint.css
 ```
 
-Update the path in `holidayservestatusboard-scripts.lava` to match your theme name and preferred folder structure.
+Update the path in `scripts/holidayservestatusboard-scripts.lava` to match your theme name and preferred folder structure.
 
 ### Step 9: Set Up the Pages
 
@@ -242,8 +254,8 @@ You'll need three pages. Each page requires a **Lava Application Content** block
 
 **Page 1: Public Signup**
 - Route: `/servechristmas` and/or `/serveeaster` (the block detects the URL path to set the holiday context)
-- Lava Application Content block: paste from `lava-application-blocks/HolidaySignup.lava`
-- HTML Content block (styles): paste from `holidayserve-styles.lava`
+- Lava Application Content block: paste from `lava-application/content-blocks/HolidaySignup.lava`
+- HTML Content block (styles): paste from `styles/holidayserve-styles.lava`
 - HTML Content block (intro): paste from `holidayserve-introparagraph.lava` — **this is example content with Crossing-specific copy.** Replace the intro text, event dates, and ministry name references with your own.
 - HTML Content block (scripts, optional): if any of your endpoints return tooltip-enabled content, add a block with the `htmx:afterSettle` tooltip initializer:
 ```html
@@ -259,18 +271,18 @@ You'll need three pages. Each page requires a **Lava Application Content** block
 
 **Page 2: Staff Admin**
 - Route: your choice (e.g., `/holidayservecentral/admin`)
-- Lava Application Content block: paste from `lava-application-blocks/HolidayServeAdmin.lava`
-- HTML Content block (styles): paste from `holidayserveadmin-styles.lava`
-- HTML Content block (scripts): paste from `holidayserveadmin-scripts.lava` — contains the toast notification functions (`showToast` / `debounceToast`) used by the save endpoint
+- Lava Application Content block: paste from `lava-application/content-blocks/HolidayServeAdmin.lava`
+- HTML Content block (styles): paste from `styles/holidayserveadmin-styles.lava`
+- HTML Content block (scripts): paste from `scripts/holidayserveadmin-scripts.lava` — contains the toast notification functions (`showToast` / `debounceToast`) used by the save endpoint
 - Security: restrict to ministry team staff (Application Edit security on the Helix app controls what they can see)
 
 ![Staff admin page block setup](screenshots/screenshot-pagesetup-admin.png)
 
 **Page 3: Status Board**
 - Route: your choice (e.g., `/holidayservecentral/statusboard`)
-- Lava Application Content block: paste from `lava-application-blocks/HolidayServeStatusBoard.lava`
-- HTML Content block (styles): paste from `holidayservestatusboard-styles.lava`
-- HTML Content block (scripts): paste from `holidayservestatusboard-scripts.lava` — contains the `printStatusBoard()` function
+- Lava Application Content block: paste from `lava-application/content-blocks/HolidayServeStatusBoard.lava`
+- HTML Content block (styles): paste from `styles/holidayservestatusboard-styles.lava`
+- HTML Content block (scripts): paste from `scripts/holidayservestatusboard-scripts.lava` — contains the `printStatusBoard()` function
 - Security: restrict to ministry team staff
 
 ![Status board page block setup](screenshots/screenshot-pagesetup-statusboard.png)
@@ -278,7 +290,7 @@ You'll need three pages. Each page requires a **Lava Application Content** block
 **Page 4: Workflow Entry (Signup Confirmation)**
 - Route: must match the path your signup button constructs (e.g., `/holidayserve/signup`)
 - Add a standard Rock **Workflow Entry** block configured to launch your signup workflow. Set the block's CSS Class to `xingform` — this scopes the workflow entry styling so it doesn't affect other elements on the page.
-- HTML Content block (styles + page title): paste from `holidayservewf-styles.lava` — this block also sets the browser and page title based on the URL path (Christmas vs Easter), so it needs to be present even if you don't customize the styles
+- HTML Content block (styles + page title): paste from `styles/holidayservewf-styles.lava` — this block also sets the browser and page title based on the URL path (Christmas vs Easter), so it needs to be present even if you don't customize the styles
 
 ![Workflow entry page block setup](screenshots/screenshot-pagesetup-signupwf.png)
 
@@ -380,7 +392,7 @@ All four style files define the same custom property at the top:
 }
 ```
 
-Replace `#a1302b` with your own brand color in `holidayserve-styles.lava`, `holidayserveadmin-styles.lava`, `holidayservestatusboard-styles.lava`, and `holidayservewf-styles.lava`. This controls panel headers, selected card states, the signup button, and the submit button on the workflow entry page.
+Replace `#a1302b` with your own brand color in all four files in the `styles/` folder. This controls panel headers, selected card states, the signup button, and the submit button on the workflow entry page.
 
 ### Adjust the slot calculation
 
