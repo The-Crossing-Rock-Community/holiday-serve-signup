@@ -77,7 +77,7 @@ Create a Defined Type to represent your ministry teams (e.g., KidsCrossing, Gues
 
 The signup workflow uses this attribute to look up who to notify when someone signs up for a role. Add a **Group Role** attribute to this Defined Type with the key `CampusMinistryTeamContact`, scoped to the **Campus Team** group type. Then set the value on each Defined Value to the Campus Team role responsible for that ministry at each campus.
 
-This relies on Rock's built-in Campus Team feature — see the [Rock documentation](https://community.rockrms.com/documentation) for how to set up Campus Teams and add members. The one additional step is adding a role to the Campus Team group type for each ministry you want to support (e.g., "KidsCrossing Contact," "Guest Experiences Lead").
+This relies on Rock's built-in Campus Team feature — see the [Rock documentation on Campus Teams](https://community.rockrms.com/documentation/core-concepts/rock-fundamentals/campuses/handle-campus-teams) for how to set up Campus Teams and add members. The one additional step is adding a role to the Campus Team group type for each ministry you want to support (e.g., "KidsCrossing Contact," "Guest Experiences Lead").
 
 > **Alternative:** If your church doesn't use Campus Teams, you can replace the `CampusMinistryTeamContact` Group Role attribute with a simpler **Person** or **Group** attribute on the Defined Value, then update the workflow to read from that attribute instead. The `scheduling@yourchurch.com` placeholder in the workflow serves as a fallback if no contact is found.
 
@@ -289,7 +289,7 @@ You'll need three pages. Each page requires a **Lava Application Content** block
 
 **Page 4: Workflow Entry (Signup Confirmation)**
 - Route: must match the path your signup button constructs (e.g., `/holidayserve/signup`)
-- Add a standard Rock **Workflow Entry** block configured to launch your signup workflow. Set the block's CSS Class to `xingform` — this scopes the workflow entry styling so it doesn't affect other elements on the page.
+- Add a standard Rock **Workflow Entry** block configured to launch your signup workflow. Set the block's CSS Class to `xingform` — this scopes the workflow entry styling so it doesn't affect other elements on the page. You can use a different class name, but you'll need to update the CSS in `styles/holidayservewf-styles.lava` to match.
 - HTML Content block (styles + page title): paste from `styles/holidayservewf-styles.lava` — this block also sets the browser and page title based on the URL path (Christmas vs Easter), so it needs to be present even if you don't customize the styles
 
 ![Workflow entry page block setup](screenshots/screenshot-pagesetup-signupwf.png)
@@ -299,11 +299,15 @@ The admin UI includes a link to edit total slots for a group. Set `GroupAdminPag
 
 ### Optional Enhancement: Holiday Serve Central Hub Page
 
-We created a parent hub page at `/holidayservecentral` that lives under `/people/manage` (so it appears in Rock's internal left nav) and acts as a launch pad for all Holiday Serve admin pages. It uses a single **Page Menu** block with Rock's built-in `PageListAsBlocks.lava` template:
+We created a parent hub page at `/holidayservecentral` that lives under `/people/manage` (so it appears in Rock's internal left nav) and acts as a launch pad for all Holiday Serve admin pages. It uses a single **Page Menu** block configured with your Holiday Serve Central page as the Root Page and Rock's built-in `PageListAsBlocks.lava` as the template:
 
 ```
 {% include '~~/Assets/Lava/PageListAsBlocks.lava' %}
 ```
+
+![Holiday Serve Central page setup](screenshots/screenshot-pagesetup-holidayservecentral.png)
+
+![Page Menu block properties](screenshots/screenshot-pagesetup-holidayservecentral-pagemenu.png)
 
 Child pages hang off this parent, so staff get one place to access everything. Here's what we put under it:
 
@@ -312,7 +316,7 @@ Child pages hang off this parent, so staff get one place to access everything. H
 - **Holiday Serve Groups** — a standard Rock Group Detail page scoped to your Holiday Serving Group Type, so staff can manage locations, schedules, and slot capacities without landing in Rock's main group admin. Set `GroupAdminPagePath` in Configuration Rigging to this page's route.
 - **Holiday Group Scheduler** — a standard Rock Group Scheduler page filtered to your Holiday Serving Group Type. Useful for sending scheduling confirmations and managing RSVPs.
 - **Holiday Serve Background Check Reports** — data views or reports per campus listing volunteers who need a background check. Saves staff from having to check each group individually.
-- **Group Schedule Communication** — a link to Rock's standard Group Schedule Communication page. No custom setup needed; just add it as a child page so staff can find it from the hub.
+- **Group Schedule Communication** — a link to Rock's standard Group Schedule Communication page. Rather than adding it as a child page, add it via the **Include Page List** setting on the Page Menu block. This surfaces it in the hub without it needing to live in your page tree under Holiday Serve Central. The tradeoff: breadcrumbs won't show Holiday Serve Central as a parent when staff navigate to that page.
 
 Not required, but it makes the experience much cleaner for ministry teams.
 

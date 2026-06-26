@@ -105,3 +105,9 @@ The short version:
 ## License
 
 MIT — use, adapt, and share freely. If you build something from this, we'd love to hear about it in the [Rock Community](https://community.rockrms.com).
+
+---
+
+## Questions?
+
+Drop a comment on the [Rock Community post](https://community.rockrms.com/recipes), open an issue in this repo, or find us on RocketChat — we're **@stan.yoder** and **@karenrossi**.
