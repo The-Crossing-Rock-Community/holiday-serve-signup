@@ -69,7 +69,7 @@ When a volunteer signs up, the signup workflow creates an `Attendance` record wi
 
 Create a Defined Type to represent your ministry teams (e.g., KidsCrossing, Guest Experiences, Production, etc.). Add a Defined Value for each ministry that will have serving roles in your campaign.
 
-[SCREENSHOT: Defined Type setup]
+![Ministry Team Defined Type setup](screenshots/screenshot-setup-defined-type.png)
 
 You'll need the **Id** of this Defined Type and the **Id** of each Defined Value for your Configuration Rigging.
 
@@ -79,18 +79,29 @@ Create a new Group Type with the following configuration:
 
 **General:**
 - Name: something like "Holiday Serving" (your choice)
-- Enable Group Scheduling: **Yes**
-- Show Connection Status: your preference
-- Group Member Workflow Triggers: configure as needed for your signup workflow
+- Purpose: Serving Area
+- Location Selection Modes: Named
+- Multiple Locations: Yes
+- Enable Location Schedules: Yes
+
+![Group Type general settings](screenshots/screenshot-grouptype.png)
+
+Under the **Scheduling** section, enable Group Scheduling:
+
+- Scheduling Enabled: **Yes**
+
+![Group Type scheduling settings](screenshots/screenshot-grouptype-scheduling.png)
 
 **Group Attributes** (add these to the Group Type):
 
 | Key | Label | Field Type | Notes |
 |---|---|---|---|
 | `PublicLabel` | Public Label | Text | The name shown to volunteers on the signup page |
-| `Icon` | Icon | Text | Tabler icon class (e.g., `ti ti-hands`) |
+| `Icon` | Icon CSS Class | Text | Tabler icon class (e.g., `ti ti-hands`) |
 | `SignUpAccessGroup` | Sign Up Access Group | Group | Optional — restricts signup to members of a specific group |
 | `HolidayServeMinistryTeam` | Holiday Serve Ministry Team | Defined Value | Use the Defined Type you created in Step 1 |
+
+![Group Type group attributes](screenshots/screenshot-grouptype-group-attributes.png)
 
 **Group Member Attributes** (add these to the Group Type):
 
@@ -99,9 +110,7 @@ Create a new Group Type with the following configuration:
 | `NewVolunteer` | New Volunteer? | Boolean | Track first-time volunteers |
 | `Assistant` | Assistant? | Boolean | Flag volunteer team leads/assistants |
 
-[SCREENSHOT: Group Type configuration]
-[SCREENSHOT: Group attributes]
-[SCREENSHOT: Group Member attributes]
+![Group Type member attributes](screenshots/screenshot-grouptype-member-attributes.png)
 
 You'll need the **Id** of this Group Type for your Configuration Rigging.
 
@@ -119,7 +128,13 @@ For each serving role at each campus, create a group:
 
 Under **Group Scheduling**, add Group Locations and link your service time Schedules. For each Group Location + Schedule, set the **Desired Capacity**.
 
-[SCREENSHOT: Example group setup with locations and schedules]
+![Group locations and schedules grid](screenshots/screenshot-group-locations.png)
+
+![Location schedule capacity modal](screenshots/screenshot-group-locations-modal.png)
+
+The group attributes filled in for a configured group will look something like this:
+
+![Group attributes example](screenshots/screenshot-group-attributes.png)
 
 ### Step 4: Create the Signup Workflow
 
@@ -211,8 +226,6 @@ In your Helix application, open Configuration Rigging and enter the following JS
 
 > **Tip:** You can find Attribute IDs in Rock under Admin Tools > General Settings > Attributes, filtering by Entity Type "Group."
 
-[SCREENSHOT: Configuration Rigging example]
-
 ### Step 8: Deploy the Print Stylesheet
 
 Copy `HolidayServeStatusBoardPrint.css` from the repo into your Rock theme folder. The status board's print function references it at:
@@ -242,29 +255,35 @@ You'll need three pages. Each page requires a **Lava Application Content** block
 ```
 - Security: open to all (unauthenticated users can view the page; the family member dropdown is hidden when no one is logged in)
 
+![Public signup page block setup](screenshots/screenshot-pagesetup-signup.png)
+
 **Page 2: Staff Admin**
-- Route: your choice (e.g., `/holidayserve/admin`)
+- Route: your choice (e.g., `/holidayservecentral/admin`)
 - Lava Application Content block: paste from `lava-application-blocks/HolidayServeAdmin.lava`
 - HTML Content block (styles): paste from `holidayserveadmin-styles.lava`
 - HTML Content block (scripts): paste from `holidayserveadmin-scripts.lava` — contains the toast notification functions (`showToast` / `debounceToast`) used by the save endpoint
 - Security: restrict to ministry team staff (Application Edit security on the Helix app controls what they can see)
 
+![Staff admin page block setup](screenshots/screenshot-pagesetup-admin.png)
+
 **Page 3: Status Board**
-- Route: your choice (e.g., `/holidayserve/status`)
+- Route: your choice (e.g., `/holidayservecentral/statusboard`)
 - Lava Application Content block: paste from `lava-application-blocks/HolidayServeStatusBoard.lava`
 - HTML Content block (styles): paste from `holidayservestatusboard-styles.lava`
 - HTML Content block (scripts): paste from `holidayservestatusboard-scripts.lava` — contains the `printStatusBoard()` function
 - Security: restrict to ministry team staff
 
+![Status board page block setup](screenshots/screenshot-pagesetup-statusboard.png)
+
 **Page 4: Workflow Entry (Signup Confirmation)**
-- Route: must match the path your signup button constructs (e.g., `/servechristmas/signup` and `/serveeaster/signup`)
-- Add a standard Rock **Workflow Entry** block configured to launch your signup workflow
+- Route: must match the path your signup button constructs (e.g., `/holidayserve/signup`)
+- Add a standard Rock **Workflow Entry** block configured to launch your signup workflow. Set the block's CSS Class to `xingform` — this scopes the workflow entry styling so it doesn't affect other elements on the page.
 - HTML Content block (styles + page title): paste from `holidayservewf-styles.lava` — this block also sets the browser and page title based on the URL path (Christmas vs Easter), so it needs to be present even if you don't customize the styles
+
+![Workflow entry page block setup](screenshots/screenshot-pagesetup-signupwf.png)
 
 **Group Management Page**
 The admin UI includes a link to edit total slots for a group. Set `GroupAdminPagePath` in Configuration Rigging to the path of your Rock Group Detail admin page (e.g., `/rock/group/{0}`).
-
-[SCREENSHOT: Page setup example]
 
 ### Optional Enhancement: Holiday Serve Central Hub Page
 
